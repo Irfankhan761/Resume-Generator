@@ -26,12 +26,12 @@ const Navbar: React.FC = () => {
             <span className="font-extrabold">CV</span> Pro
           </div>
 
-          <nav className="hidden md:flex gap-6 items-center">
+          <nav className="hidden md:flex gap-6 items-center p-3 rounded-xl shadow-lg bg-white border-2 border-blue-200">
             {navLinks.map((link) => (
               <a
                 key={link.href}
                 href={link.href}
-                className="text-gray-700 hover:text-blue-600 transition-colors font-medium"
+                className="relative text-gray-700 hover:text-blue-600 transition-colors font-medium after:content-[''] after:absolute after:w-full after:scale-x-0 after:h-[2px] after:bottom-0 after:left-0 after:bg-blue-600 after:transition-transform after:duration-300 hover:after:scale-x-100"
               >
                 {link.label}
               </a>
@@ -67,12 +67,7 @@ const Navbar: React.FC = () => {
       </header>
 
       {/* Content (add padding-top to prevent overlap) */}
-      <div className="pt-[72px]">
-        Lorem ipsum dolor sit amet consectetur adipisicing elit. Debitis animi
-        quos voluptas sequi, voluptatibus omnis. Natus maxime suscipit illo,
-        obcaecati omnis sed cum. Exercitationem saepe eius nemo ipsa veritatis
-        ex?
-      </div>
+      <div className="pt-[100px]"></div>
 
       <Drawer
         title="CV Pro"
@@ -80,14 +75,15 @@ const Navbar: React.FC = () => {
         onClose={toggleMobileMenu}
         visible={mobileMenuOpen}
         className="text-center"
+        width={200}
       >
-        <div className="py-4">
+        <div>
           {navLinks.map((link) => (
             <a
               key={link.href}
               href={link.href}
               className="text-lg text-gray-700 hover:text-blue-600
-                    transition-colors py-2 block w-full text-center
+                    transition-colors py-2 block w-full text-start
                     font-medium"
               onClick={toggleMobileMenu}
             >
@@ -95,16 +91,16 @@ const Navbar: React.FC = () => {
             </a>
           ))}
 
-          <div className="mt-4 flex flex-col items-center">
+          <div className=" flex flex-col items-start">
             <Button
-              className="px-5 py-2 text-blue-600 border border-blue-600 rounded-full hover:bg-blue-100 transition-all font-medium mb-2 w-full sm:w-auto"
+              className="px-5 py-2 text-blue-600 border border-blue-600  hover:bg-blue-100 transition-all font-medium mb-2 w-24"
               aria-label="Login"
             >
               Login
             </Button>
             <Button
               type="primary"
-              className="px-5 py-2 bg-blue-600 text-white rounded-full hover:bg-blue-700 transition-all font-medium w-full sm:w-auto"
+              className="px-5 py-2 bg-blue-600 text-white  hover:bg-blue-700 transition-all font-medium w-24"
               aria-label="Create CV"
             >
               Create CV
