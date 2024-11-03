@@ -2,16 +2,15 @@ import { Button, Typography } from "antd";
 import { FileAddOutlined, FileTextOutlined } from "@ant-design/icons";
 
 const HeroSection: React.FC = () => {
-  const { Title, Paragraph } = Typography;
+  const { Paragraph } = Typography;
   return (
     <div className="container mx-auto px-4 pt-16 text-center">
-      <Title
-        level={1}
+      <div
         className="text-4xl md:text-6xl font-bold mb-4 text-gray-900
       bg-gradient-to-r from-blue-500 to-purple-600 bg-clip-text text-transparent"
       >
-        Create Your Perfect CV in Minutes
-      </Title>
+        <h1>Create Your Perfect CV in Minutes</h1>
+      </div>
       <Paragraph className="text-xl text-gray-600 max-w-2xl mx-auto mb-8">
         Transform your professional story with our AI-powered CV builder. Craft
         compelling resumes that stand out and land your dream job.
