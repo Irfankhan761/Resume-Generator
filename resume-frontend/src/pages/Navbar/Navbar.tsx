@@ -1,12 +1,18 @@
 import { Button, Drawer } from "antd";
 import { MenuOutlined } from "@ant-design/icons";
 import React, { useState } from "react";
+import { useNavigate } from "react-router-dom";
 
 const Navbar: React.FC = () => {
+  const navigate = useNavigate();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const toggleMobileMenu = () => {
     setMobileMenuOpen(!mobileMenuOpen);
+  };
+
+  const handleCreateCVNavigation = () => {
+    navigate("/create-cv"); // Navigate to the CV builder route
   };
 
   const navLinks = [
@@ -51,6 +57,7 @@ const Navbar: React.FC = () => {
                         hover:bg-blue-700 transition-all font-medium
                         group relative overflow-hidden`}
               aria-label="Create CV"
+              onClick={handleCreateCVNavigation}
             >
               <span className="z-10">Create CV</span>
               <span className="absolute inset-0 bg-gradient-to-r from-pink-500 via-red-500 to-yellow-500 opacity-0 scale-95 group-hover:opacity-100 group-hover:scale-100 transition-all duration-500 ease-out"></span>
@@ -102,6 +109,7 @@ const Navbar: React.FC = () => {
               type="primary"
               className="px-5 py-2 bg-blue-600 text-white  hover:bg-blue-700 transition-all font-medium w-24"
               aria-label="Create CV"
+              onClick={handleCreateCVNavigation}
             >
               Create CV
             </Button>
