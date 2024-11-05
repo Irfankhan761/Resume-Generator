@@ -1,8 +1,15 @@
 import { Button, Typography } from "antd";
 import { FileAddOutlined, FileTextOutlined } from "@ant-design/icons";
+import { useNavigate } from "react-router-dom";
 
 const HeroSection: React.FC = () => {
   const { Paragraph } = Typography;
+
+  const navigate = useNavigate();
+
+  const handleCreateCVNavigation = () => {
+    navigate("/create-cv"); // Navigate to the CV builder route
+  };
   return (
     <div className="container mx-auto px-4 pt-16 text-center">
       <div
@@ -29,6 +36,7 @@ const HeroSection: React.FC = () => {
           size="large"
           icon={<FileTextOutlined />}
           className="border-blue-600 text-blue-600 hover:border-blue-700"
+          onClick={handleCreateCVNavigation}
         >
           Create New CV
         </Button>
