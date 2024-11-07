@@ -10,6 +10,10 @@ const HeroSection: React.FC = () => {
   const handleCreateCVNavigation = () => {
     navigate("/create-cv"); // Navigate to the CV builder route
   };
+
+  const handleCreatemm = () => {
+    navigate("/create-mm"); // Navigate to the CV builder route
+  };
   return (
     <div className="container mx-auto px-4 pt-16 text-center">
       <div
@@ -28,6 +32,7 @@ const HeroSection: React.FC = () => {
           size="large"
           icon={<FileAddOutlined />}
           className="bg-blue-600 hover:bg-blue-700"
+          onClick={handleCreatemm}
         >
           Import Existing Resume
         </Button>
