@@ -4,7 +4,8 @@ import "./App.css";
 import LandingPage from "./pages/LandingPage/LandingPage";
 import { Route, Routes } from "react-router-dom";
 import CVBuilder from "./pages/CVBuilderPage/CVPage";
-import CVTest from "./pages/CVBuilderPage/CV";
+// import CVTest from "./pages/CVBuilderPage/components/CV";
+import { CVTest } from "./pages/CVBuilderPage/components/CV";
 
 function App() {
   return (
