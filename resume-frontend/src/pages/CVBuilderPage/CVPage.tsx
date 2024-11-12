@@ -230,6 +230,7 @@ const CVBuilder = () => {
           <Paragraph>{cvData.personalInfo.profileSummary}</Paragraph>
         </div>
       )}
+      {/*  */}
 
       {cvData.workExperience.length > 0 && (
         <div className="mb-8">

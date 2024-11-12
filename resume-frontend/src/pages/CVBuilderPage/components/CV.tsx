@@ -5,7 +5,8 @@ import { Sidebar } from "./sidebar";
 import { CVForms } from "./CVForm";
 import { CVPreviews } from "./CVPreview";
 import { ArrowDownToLine, Eye, EyeOff } from "lucide-react";
-
+import { Layout } from "antd";
+const { Content } = Layout;
 // Define sections for type safety
 export type CVSection =
   | "Personal Info"
@@ -17,11 +18,13 @@ export type CVSection =
 const initialData: CVData = {
   personalInfo: {
     fullName: "",
+    jobTitle: "",
     email: "",
     phone: "",
-    address: "",
-    linkedIn: "",
+    location: "",
+    linkedin: "",
     website: "",
+    github: "",
     summary: "",
   },
   education: [],
@@ -89,7 +92,6 @@ export const CVTest = () => {
     []
   );
 
-  // Toggle preview
   const togglePreview = useCallback(() => {
     setShowPreview((prev) => !prev);
   }, []);
@@ -142,48 +144,30 @@ export const CVTest = () => {
           </div>
         </div>
       </header>
+      <>
+        <Layout>
+          <Sidebar
+            activeSection={activeSection}
+            onSectionChange={setActiveSection}
+          />
 
-      {/* Main content */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="flex gap-8">
-          {/* Sidebar */}
-          <div className="w-64 flex-shrink-0">
-            <div className="sticky top-8">
-              <Sidebar
-                activeSection={activeSection}
-                onSectionChange={setActiveSection}
-              />
-            </div>
-          </div>
-
-          {/* Forms and Preview */}
-          <div className="flex-1 flex gap-8">
-            {/* Forms */}
-            <div
-              className={`${
-                showPreview ? "w-1/2" : "w-full"
-              } transition-all duration-300`}
-            >
-              <div className="bg-white rounded-lg shadow">
+          <Content className="p-8">
+            <div className="grid grid-cols-2 gap-8">
+              <div className="space-y-6">
                 <CVForms
                   data={cvData}
                   onChange={handleDataChange}
                   activeSection={activeSection}
                 />
               </div>
-            </div>
 
-            {/* Preview */}
-            {showPreview && (
-              <div className="w-1/2">
-                <div className="sticky top-8">
-                  <CVPreviews data={cvData} />
-                </div>
+              <div className="sticky top-0">
+                <CVPreviews data={cvData} />
               </div>
-            )}
-          </div>
-        </div>
-      </main>
+            </div>
+          </Content>
+        </Layout>
+      </>
 
       {/* Footer */}
       <footer className="bg-white border-t mt-8">
@@ -191,7 +175,6 @@ export const CVTest = () => {
           <p className="text-sm text-gray-500">
             Remember to save your progress regularly
           </p>
-          {/* Add any additional footer content here */}
         </div>
       </footer>
     </div>

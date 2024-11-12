@@ -1,38 +1,46 @@
-// components/Sidebar.tsx
+import React from "react";
+import { Layout, Menu } from "antd";
+import {
+  UserOutlined,
+  TeamOutlined,
+  BookOutlined,
+  FileTextOutlined,
+  ProjectOutlined,
+} from "@ant-design/icons";
 import { CVSection } from "./types";
+
+const { Sider } = Layout;
 
 interface SidebarProps {
   activeSection: CVSection;
-  onSectionChange: (section: CVSection) => void; // Updated type
+  onSectionChange: (section: CVSection) => void;
 }
 
 export const Sidebar = ({ activeSection, onSectionChange }: SidebarProps) => {
-  const sections: CVSection[] = [
-    "Personal Info",
-    "Education",
-    "Work Experience",
-    "Projects",
-    "Skills",
+  const sections: { key: CVSection; label: string; icon: React.ReactNode }[] = [
+    { key: "Personal Info", label: "Personal Info", icon: <UserOutlined /> },
+    { key: "Education", label: "Education", icon: <BookOutlined /> },
+    {
+      key: "Work Experience",
+      label: "Work Experience",
+      icon: <TeamOutlined />,
+    },
+    { key: "Projects", label: "Projects", icon: <ProjectOutlined /> },
+    { key: "Skills", label: "Skills", icon: <FileTextOutlined /> },
   ];
 
   return (
-    <div className="w-64 bg-white rounded-lg shadow p-4">
-      <nav className="space-y-2">
-        {sections.map((section) => (
-          <button
-            key={section}
-            onClick={() => onSectionChange(section)}
-            className={`w-full text-left px-4 py-2 rounded transition-colors
-              ${
-                activeSection === section
-                  ? "bg-blue-600 text-white"
-                  : "hover:bg-gray-100 text-gray-700"
-              }`}
-          >
-            {section}
-          </button>
-        ))}
-      </nav>
-    </div>
+    <Sider width={200} theme="light" className="p-4">
+      <Menu
+        mode="inline"
+        selectedKeys={[activeSection]}
+        onClick={({ key }) => onSectionChange(key as CVSection)}
+        items={sections.map((section) => ({
+          key: section.key,
+          icon: section.icon,
+          label: section.label,
+        }))}
+      />
+    </Sider>
   );
 };

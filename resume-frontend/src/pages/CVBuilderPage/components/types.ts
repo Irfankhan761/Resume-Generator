@@ -1,11 +1,13 @@
 // types.ts
 export interface PersonalInfo {
   fullName: string;
+  jobTitle: string;
   email: string;
   phone: string;
-  address: string;
-  linkedIn?: string;
+  location: string;
+  linkedin?: string;
   website?: string;
+  github: string;
   summary: string;
 }
 

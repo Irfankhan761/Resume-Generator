@@ -1,5 +1,15 @@
-// components/forms/PersonalInfoForm.tsx (Updated with validation)
-import { useState } from "react";
+// components/preview/PersonalInfoForm.tsx
+
+import { Card, Form, Input } from "antd";
+import {
+  UserOutlined,
+  MailOutlined,
+  PhoneOutlined,
+  LinkedinOutlined,
+  GlobalOutlined,
+  CompassOutlined,
+  GithubOutlined,
+} from "@ant-design/icons";
 import type { PersonalInfo } from "../types";
 
 interface PersonalInfoFormProps {
@@ -7,158 +17,92 @@ interface PersonalInfoFormProps {
   onChange: (data: PersonalInfo) => void;
 }
 
-interface ValidationErrors {
-  [key: string]: string;
-}
-
 export const PersonalInfoForm = ({ data, onChange }: PersonalInfoFormProps) => {
-  const [errors, setErrors] = useState<ValidationErrors>({});
+  const [form] = Form.useForm();
 
-  const validateField = (name: string, value: string): string => {
-    switch (name) {
-      case "email":
-        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-        return !value
-          ? "Email is required"
-          : !emailRegex.test(value)
-          ? "Invalid email format"
-          : "";
-      case "phone":
-        const phoneRegex = /^\+?[\d\s-]{10,}$/;
-        return !value
-          ? "Phone is required"
-          : !phoneRegex.test(value)
-          ? "Invalid phone format"
-          : "";
-      case "fullName":
-        return !value
-          ? "Full name is required"
-          : value.length < 2
-          ? "Name is too short"
-          : "";
-      case "summary":
-        return !value
-          ? "Summary is required"
-          : value.length < 50
-          ? "Summary should be at least 50 characters"
-          : "";
-      default:
-        return "";
-    }
+  const handleValuesChange = (_: any, allValues: PersonalInfo) => {
+    onChange(allValues);
   };
-
-  const handleChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
-  ) => {
-    const { name, value } = e.target;
-
-    // Validate the field
-    const error = validateField(name, value);
-    setErrors((prev) => ({
-      ...prev,
-      [name]: error,
-    }));
-
-    // Update the data
-    onChange({
-      ...data,
-      [name]: value,
-    });
-  };
-
-  const inputClass = (fieldName: string) => `
-    input input-bordered w-full
-    ${errors[fieldName] ? "border-red-500" : ""}
-  `;
 
   return (
-    <div className="space-y-4 p-4">
-      <h2 className="text-xl font-bold mb-4">Personal Information</h2>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div>
-          <input
-            type="text"
-            name="fullName"
-            value={data.fullName}
-            onChange={handleChange}
-            placeholder="Full Name *"
-            className={inputClass("fullName")}
-          />
-          {errors.fullName && (
-            <p className="text-red-500 text-sm mt-1">{errors.fullName}</p>
-          )}
-        </div>
+    <Card title="Personal Information" style={{ margin: "20px" }}>
+      <Form
+        form={form}
+        layout="vertical"
+        initialValues={data}
+        onValuesChange={handleValuesChange}
+      >
+        <Form.Item
+          name="fullName"
+          label="Full Name"
+          rules={[
+            { required: true, message: "Full Name is required" },
+            { min: 2, message: "Name is too short" },
+          ]}
+        >
+          <Input prefix={<UserOutlined />} placeholder="Full Name" />
+        </Form.Item>
 
-        <div>
-          <input
-            type="email"
-            name="email"
-            value={data.email}
-            onChange={handleChange}
-            placeholder="Email *"
-            className={inputClass("email")}
-          />
-          {errors.email && (
-            <p className="text-red-500 text-sm mt-1">{errors.email}</p>
-          )}
-        </div>
+        <Form.Item
+          name="jobTitle"
+          label="Job Title"
+          rules={[{ required: true, message: "Job Title is required" }]}
+        >
+          <Input placeholder="Job Title" />
+        </Form.Item>
 
-        <div>
-          <input
-            type="tel"
-            name="phone"
-            value={data.phone}
-            onChange={handleChange}
-            placeholder="Phone *"
-            className={inputClass("phone")}
-          />
-          {errors.phone && (
-            <p className="text-red-500 text-sm mt-1">{errors.phone}</p>
-          )}
-        </div>
+        <Form.Item
+          name="email"
+          label="Email"
+          rules={[
+            { required: true, message: "Email is required" },
+            { type: "email", message: "Invalid email format" },
+          ]}
+        >
+          <Input prefix={<MailOutlined />} placeholder="Email" />
+        </Form.Item>
 
-        <input
-          type="text"
-          name="address"
-          value={data.address}
-          onChange={handleChange}
-          placeholder="Address"
-          className="input input-bordered w-full"
-        />
+        <Form.Item
+          name="phone"
+          label="Phone"
+          rules={[
+            { required: true, message: "Phone is required" },
+            {
+              pattern: /^\+?[\d\s-]{10,}$/,
+              message: "Invalid phone format",
+            },
+          ]}
+        >
+          <Input prefix={<PhoneOutlined />} placeholder="Phone" />
+        </Form.Item>
 
-        <input
-          type="url"
-          name="linkedIn"
-          value={data.linkedIn}
-          onChange={handleChange}
-          placeholder="LinkedIn URL"
-          className="input input-bordered w-full"
-        />
+        <Form.Item name="location" label="Location">
+          <Input prefix={<CompassOutlined />} placeholder="Location" />
+        </Form.Item>
 
-        <input
-          type="url"
-          name="website"
-          value={data.website}
-          onChange={handleChange}
-          placeholder="Personal Website"
-          className="input input-bordered w-full"
-        />
-      </div>
+        <Form.Item name="website" label="Website">
+          <Input prefix={<GlobalOutlined />} placeholder="Website" />
+        </Form.Item>
 
-      <div>
-        <textarea
+        <Form.Item name="linkedin" label="LinkedIn">
+          <Input prefix={<LinkedinOutlined />} placeholder="LinkedIn" />
+        </Form.Item>
+
+        <Form.Item name="github" label="GitHub">
+          <Input prefix={<GithubOutlined />} placeholder="GitHub" />
+        </Form.Item>
+
+        <Form.Item
           name="summary"
-          value={data.summary}
-          onChange={handleChange}
-          placeholder="Professional Summary *"
-          className={`textarea textarea-bordered w-full h-32 ${
-            errors.summary ? "border-red-500" : ""
-          }`}
-        />
-        {errors.summary && (
-          <p className="text-red-500 text-sm mt-1">{errors.summary}</p>
-        )}
-      </div>
-    </div>
+          label="summary"
+          rules={[
+            { required: true, message: "Summary is required" },
+            { min: 50, message: "Summary should be at least 50 characters" },
+          ]}
+        >
+          <Input.TextArea rows={4} placeholder="Profile Summary" />
+        </Form.Item>
+      </Form>
+    </Card>
   );
 };
