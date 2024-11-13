@@ -2,6 +2,8 @@
 import { PersonalInfoForm } from "./FormComponents/PersonalInfoForm";
 import { EducationForm } from "./FormComponents/EducationalForm";
 import type { CVData } from "./types";
+import { WorkExperienceForm } from "./FormComponents/WorkExperienceForm";
+import { ProjectForm } from "./FormComponents/ProjectsForm";
 
 interface CVFormsProps {
   data: CVData;
@@ -17,6 +19,12 @@ export const CVForms = ({ data, onChange, activeSection }: CVFormsProps) => {
   const handleEducationChange = (education: CVData["education"]) => {
     onChange({ ...data, education });
   };
+  const handleExperienceChange = (workExperience: CVData["workExperience"]) => {
+    onChange({ ...data, workExperience });
+  };
+  const handleProjectChange = (projects: CVData["projects"]) => {
+    onChange({ ...data, projects });
+  };
 
   return (
     <div className="h-full overflow-y-auto">
@@ -28,6 +36,16 @@ export const CVForms = ({ data, onChange, activeSection }: CVFormsProps) => {
       )}
       {activeSection === "Education" && (
         <EducationForm data={data.education} onChange={handleEducationChange} />
+      )}
+      {activeSection === "Work Experience" && (
+        <WorkExperienceForm
+          data={data.workExperience}
+          onChange={handleExperienceChange}
+        />
+      )}
+
+      {activeSection === "Projects" && (
+        <ProjectForm data={data.projects} onChange={handleProjectChange} />
       )}
     </div>
   );

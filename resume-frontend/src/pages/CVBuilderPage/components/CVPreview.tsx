@@ -2,6 +2,8 @@
 import { PersonalInfoPreview } from "./PreviewComponents/PersonInfoView";
 import { EducationPreview } from "./PreviewComponents/EducationView";
 import type { CVData } from "./types";
+import { WorkExperiencePreview } from "./PreviewComponents/WorkExperienceView";
+import { ProjectPreview } from "./PreviewComponents/ProjectsView";
 
 interface CVPreviewsProps {
   data: CVData;
@@ -15,6 +17,10 @@ export const CVPreviews = ({ data }: CVPreviewsProps) => {
         {data.education.length > 0 && (
           <EducationPreview data={data.education} />
         )}
+        {data.workExperience.length > 0 && (
+          <WorkExperiencePreview data={data.workExperience} />
+        )}
+        {data.projects.length > 0 && <ProjectPreview data={data.projects} />}
       </div>
     </div>
   );
