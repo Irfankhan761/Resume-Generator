@@ -1,31 +1,52 @@
-// components/preview/EducationPreview.tsx
-import type { Education } from "../types";
+import { Card, Typography } from "antd";
+import { Education } from "../types";
 
 interface EducationPreviewProps {
   data: Education[];
 }
 
+const { Title, Text } = Typography;
+
 export const EducationPreview = ({ data }: EducationPreviewProps) => {
   return (
-    <div className="space-y-4 p-4">
-      <h2 className="text-2xl font-bold text-gray-900">Education</h2>
-      {data.map((edu) => (
-        <div key={edu.id} className="space-y-2">
-          <div className="flex justify-between">
-            <h3 className="font-semibold">{edu.institution}</h3>
-            <span className="text-gray-600">
-              {new Date(edu.startDate).getFullYear()} -{" "}
-              {new Date(edu.endDate).getFullYear()}
-            </span>
+    <Card className="mb-8">
+      <div className="flex items-center mb-4">
+        <Title level={3} className="mr-2">
+          Education
+        </Title>
+      </div>
+      <div className="space-y-4">
+        {data.map((edu) => (
+          <div key={edu.id} className="border rounded-lg p-4 space-y-2">
+            <div className="flex justify-between items-center">
+              <Text strong className="text-lg">
+                {edu.institution}
+              </Text>
+              <Text type="secondary">
+                {new Date(edu.startDate).getFullYear()} -{" "}
+                {edu.current ? "Present" : new Date(edu.endDate).getFullYear()}
+              </Text>
+            </div>
+            <div>
+              <Text className="text-gray-800 font-medium">
+                {edu.degree} in {edu.field}
+              </Text>
+              {edu.gpa && (
+                <Text className="text-gray-600 ml-4">GPA: {edu.gpa}</Text>
+              )}
+            </div>
+            {edu.achievements.length > 0 && (
+              <ul className="list-disc pl-4 space-y-1">
+                {edu.achievements.map((achievement, index) => (
+                  <li key={index} className="text-gray-700">
+                    {achievement}
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
-          <p className="text-gray-800">
-            {edu.degree} in {edu.field}
-          </p>
-          {edu.gpa && <p className="text-gray-600">GPA: {edu.gpa}</p>}
-        </div>
-      ))}
-    </div>
+        ))}
+      </div>
+    </Card>
   );
 };
-
-// Similar structure for other preview components...

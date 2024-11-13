@@ -1,4 +1,3 @@
-// types.ts
 export interface PersonalInfo {
   fullName: string;
   jobTitle: string;
@@ -12,6 +11,7 @@ export interface PersonalInfo {
 }
 
 export interface Education {
+  current: any;
   id: string;
   institution: string;
   degree: string;
@@ -19,7 +19,7 @@ export interface Education {
   startDate: string;
   endDate: string;
   gpa?: string;
-  achievements?: string[];
+  achievements: string[];
 }
 
 export interface Project {
