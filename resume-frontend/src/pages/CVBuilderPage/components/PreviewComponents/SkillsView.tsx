@@ -1,4 +1,4 @@
-import { Card, Typography, Tag } from "antd";
+import { Card, Typography, Tag, Progress } from "antd";
 import { Skill } from "../types";
 
 interface SkillPreviewProps {
@@ -20,12 +20,30 @@ export const SkillPreview = ({ data }: SkillPreviewProps) => {
             <Text strong className="text-lg">
               {skillCategory.category}
             </Text>
-            <div className="flex flex-wrap gap-2 mt-2">
-              {skillCategory.skills.map((skill, index) => (
-                <Tag color="blue" key={index}>
-                  {skill}
-                </Tag>
-              ))}
+            <div className="flex flex-wrap gap-4 mt-2">
+              {(skillCategory.skills || []).map(
+                (skill, index) =>
+                  skill && (
+                    <div key={index} className="flex items-center gap-2">
+                      <Tag color="blue">{skill.name || "Unnamed Skill"}</Tag>
+                      <Progress
+                        percent={skill.level || 0}
+                        showInfo={false}
+                        status="active"
+                        className="w-24"
+                      />
+                      <Text type="secondary">
+                        {skill.level === 100
+                          ? "Expert"
+                          : skill.level === 80
+                          ? "High"
+                          : skill.level === 50
+                          ? "Medium"
+                          : "Low"}
+                      </Text>
+                    </div>
+                  )
+              )}
             </div>
           </div>
         ))}
@@ -33,41 +51,3 @@ export const SkillPreview = ({ data }: SkillPreviewProps) => {
     </Card>
   );
 };
-
-// import { Card, Typography, Divider } from "antd";
-// import { Skill } from "../types";
-
-// interface SkillPreviewProps {
-//   data: Skill[];
-// }
-
-// const { Title, Text } = Typography;
-
-// export const SkillPreview = ({ data }: SkillPreviewProps) => {
-//   return (
-//     <Card className="mb-8">
-//       <div className="flex items-center mb-4">
-//         <Title level={3} className="mr-2">
-//           Skills
-//         </Title>
-//       </div>
-//       <div className="space-y-4">
-//         {data.map((skill) => (
-//           <div key={skill.id} className="border rounded-lg p-4 space-y-2">
-//             <Text strong className="text-lg">
-//               {skill.category}
-//             </Text>
-//             <div className="flex flex-wrap gap-2">
-//               {skill.skills.map((s, index) => (
-//                 <Text key={index} className="bg-gray-200 px-2 py-1 rounded-md">
-//                   {s}
-//                 </Text>
-//               ))}
-//             </div>
-//             <Divider />
-//           </div>
-//         ))}
-//       </div>
-//     </Card>
-//   );
-// };

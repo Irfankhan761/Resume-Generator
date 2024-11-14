@@ -35,7 +35,10 @@ export interface Project {
 export interface Skill {
   id: string;
   category: string;
-  skills: string[];
+  skills: {
+    name: string;
+    level: number; // Skill level represented as a percentage
+  }[];
 }
 
 export interface WorkExperience {

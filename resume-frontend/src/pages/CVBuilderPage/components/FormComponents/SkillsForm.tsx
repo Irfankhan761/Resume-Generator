@@ -1,4 +1,4 @@
-import { Card, Button, Form, Input, Space } from "antd";
+import { Card, Button, Form, Input, Space, Select } from "antd";
 import { PlusOutlined, MinusCircleOutlined } from "@ant-design/icons";
 import { Skill } from "../types";
 
@@ -14,7 +14,7 @@ export const SkillForm = ({ data, onChange }: SkillFormProps) => {
     onChange(values.skills);
   };
 
-  const onValuesChange = (changedValues: any, allValues: any) => {
+  const onValuesChange = (_: any, allValues: any) => {
     onChange(allValues.skills);
   };
 
@@ -25,7 +25,7 @@ export const SkillForm = ({ data, onChange }: SkillFormProps) => {
         {
           id: Date.now().toString(),
           category: "",
-          skills: [],
+          skills: [{ name: "", level: 25 }],
         },
       ],
     });
@@ -53,17 +53,19 @@ export const SkillForm = ({ data, onChange }: SkillFormProps) => {
                   <Form.Item
                     {...restField}
                     name={[name, "category"]}
-                    label="Category"
+                    label="Skill Category"
                     rules={[
-                      { required: true, message: "Category is required" },
+                      {
+                        required: true,
+                        message: "Please input skill category!",
+                      },
                     ]}
-                    className="w-full"
                   >
-                    <Input placeholder="Enter skill category (e.g., Frontend, Backend)" />
+                    <Input placeholder="e.g., Frontend, Backend, Database" />
                   </Form.Item>
 
                   <Form.List name={[name, "skills"]}>
-                    {(skillFields, { add, remove }) => (
+                    {(skillFields, { add: addSkill, remove: removeSkill }) => (
                       <>
                         {skillFields.map(
                           ({ key, name: skillName, ...restSkillField }) => (
@@ -74,36 +76,67 @@ export const SkillForm = ({ data, onChange }: SkillFormProps) => {
                             >
                               <Form.Item
                                 {...restSkillField}
-                                name={[skillName]}
-                                className="w-full"
+                                name={[skillName, "name"]}
+                                label="Skill"
+                                rules={[
+                                  {
+                                    required: true,
+                                    message: "Please input skill name!",
+                                  },
+                                ]}
                               >
-                                <Input placeholder="Skill (e.g., React, Node.js)" />
+                                <Input placeholder="Skill Name" />
+                              </Form.Item>
+                              <Form.Item
+                                {...restSkillField}
+                                name={[skillName, "level"]}
+                                label="Level"
+                                rules={[
+                                  {
+                                    required: true,
+                                    message: "Please select skill level!",
+                                  },
+                                ]}
+                              >
+                                <Select style={{ width: 120 }}>
+                                  <Select.Option value={25}>Low</Select.Option>
+                                  <Select.Option value={50}>
+                                    Medium
+                                  </Select.Option>
+                                  <Select.Option value={80}>High</Select.Option>
+                                  <Select.Option value={100}>
+                                    Expert
+                                  </Select.Option>
+                                </Select>
                               </Form.Item>
                               <Button
                                 type="link"
                                 danger
-                                onClick={() => remove(skillName)}
+                                onClick={() => removeSkill(skillName)}
                                 icon={<MinusCircleOutlined />}
                               />
                             </Space>
                           )
                         )}
                         <Form.Item>
-                          <Button type="dashed" onClick={() => add()} block>
+                          <Button
+                            type="dashed"
+                            onClick={() => addSkill()}
+                            block
+                          >
                             Add Skill
                           </Button>
                         </Form.Item>
                       </>
                     )}
                   </Form.List>
-
                   <Button
                     type="link"
                     danger
                     onClick={() => onRemove(name)}
                     icon={<MinusCircleOutlined />}
                   >
-                    Remove Category
+                    Remove Skill Category
                   </Button>
                 </div>
               ))}

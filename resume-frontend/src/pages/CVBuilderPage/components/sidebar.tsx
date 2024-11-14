@@ -30,7 +30,7 @@ export const Sidebar = ({ activeSection, onSectionChange }: SidebarProps) => {
   ];
 
   return (
-    <Sider width={200} theme="light" className="p-4">
+    <Sider width={220} theme="light" className="p-4">
       <Menu
         mode="inline"
         selectedKeys={[activeSection]}
