@@ -1,7 +1,6 @@
-import { Card, Button, Form, Input, DatePicker, Space } from "antd";
+import { Card, Button, Form, Input, DatePicker, Space, Switch } from "antd";
 import { PlusOutlined, MinusCircleOutlined } from "@ant-design/icons";
 import { WorkExperience } from "../types";
-import TextArea from "antd/es/input/TextArea";
 
 interface WorkExperienceFormProps {
   data: WorkExperience[];
@@ -33,6 +32,7 @@ export const WorkExperienceForm = ({
           location: "",
           startDate: "",
           endDate: "",
+          currentlyWorking: false,
           description: [],
           technologies: [],
         },
@@ -61,6 +61,7 @@ export const WorkExperienceForm = ({
                 <div key={key} className="border p-4 rounded-lg space-y-4">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <Form.Item
+                      {...restField}
                       name={[name, "company"]}
                       label="Company"
                       rules={[{ required: true }]}
@@ -68,33 +69,87 @@ export const WorkExperienceForm = ({
                       <Input />
                     </Form.Item>
                     <Form.Item
+                      {...restField}
                       name={[name, "position"]}
                       label="Position"
                       rules={[{ required: true }]}
                     >
                       <Input />
                     </Form.Item>
+                  </div>
+                  <Form.Item
+                    {...restField}
+                    name={[name, "location"]}
+                    label="Location"
+                    rules={[{ required: true }]}
+                    className="w-full"
+                  >
+                    <Input />
+                  </Form.Item>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <Form.Item
-                      name={[name, "location"]}
-                      label="Location"
-                      rules={[{ required: true }]}
-                    >
-                      <Input />
-                    </Form.Item>
-                    <Form.Item
+                      {...restField}
                       name={[name, "startDate"]}
                       label="Start Date"
                       rules={[{ required: true }]}
                     >
                       <DatePicker className="w-full" />
                     </Form.Item>
-                    <Form.Item
-                      name={[name, "endDate"]}
-                      label="End Date"
-                      rules={[{ required: true }]}
-                    >
-                      <DatePicker className="w-full" />
+                    <Form.Item {...restField} label="End Date">
+                      <Space direction="horizontal">
+                        <Form.Item
+                          noStyle
+                          name={[name, "endDate"]}
+                          rules={[
+                            {
+                              required: !form.getFieldValue([
+                                "workExperience",
+                                name,
+                                "currentlyWorking",
+                              ]),
+                            },
+                          ]}
+                        >
+                          <DatePicker
+                            className="w-full"
+                            disabled={form.getFieldValue([
+                              "workExperience",
+                              name,
+                              "currentlyWorking",
+                            ])}
+                          />
+                        </Form.Item>
+                      </Space>
                     </Form.Item>
+                    {/* <div className="position relative bottom-8"> */}
+                    <div className="">
+                      <Form.Item
+                        name={[name, "currentlyWorking"]}
+                        label="Currently working here"
+                        valuePropName="checked"
+                      >
+                        <Switch
+                          // checkedChildren="Present"
+                          // unCheckedChildren=""
+                          onChange={(checked) => {
+                            form.setFieldsValue({
+                              workExperience: form
+                                .getFieldValue("workExperience")
+                                .map((exp: WorkExperience, index: number) =>
+                                  index === name
+                                    ? {
+                                        ...exp,
+                                        currentlyWorking: checked,
+                                        endDate: checked ? null : exp.endDate,
+                                      }
+                                    : exp
+                                ),
+                            });
+                            onChange(form.getFieldValue("workExperience"));
+                          }}
+                        />
+                      </Form.Item>
+                    </div>
                   </div>
 
                   <Form.List name={[name, "description"]}>
@@ -116,9 +171,9 @@ export const WorkExperienceForm = ({
                                 name={[descriptionName]}
                                 className="w-full"
                               >
-                                <TextArea
+                                <Input.TextArea
+                                  rows={4}
                                   placeholder="Job Description"
-                                  rows={2}
                                 />
                               </Form.Item>
                               <Button

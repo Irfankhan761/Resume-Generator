@@ -1,6 +1,7 @@
-import { Card, Button, Form, Input, DatePicker } from "antd";
+import { Card, Button, Form, Input, DatePicker, Space } from "antd";
 import { PlusOutlined, MinusCircleOutlined } from "@ant-design/icons";
 import { Project } from "../types";
+import TextArea from "antd/es/input/TextArea";
 
 interface ProjectFormProps {
   data: Project[];
@@ -10,19 +11,8 @@ interface ProjectFormProps {
 export const ProjectForm = ({ data, onChange }: ProjectFormProps) => {
   const [form] = Form.useForm();
 
-  // const onFinish = (values: any) => {
-  //   onChange(values.projects);
-  // };
-
   const onFinish = (values: any) => {
-    const projects = values.projects.map((project: any) => ({
-      ...project,
-      technologies:
-        typeof project.technologies === "string"
-          ? project.technologies.split(",").map((tech: string) => tech.trim())
-          : project.technologies,
-    }));
-    onChange(projects);
+    onChange(values.projects);
   };
 
   const onValuesChange = (changedValues: any, allValues: any) => {
@@ -65,46 +55,98 @@ export const ProjectForm = ({ data, onChange }: ProjectFormProps) => {
             <>
               {fields.map(({ key, name, ...restField }) => (
                 <div key={key} className="border p-4 rounded-lg space-y-4">
+                  <Form.Item
+                    {...restField}
+                    name={[name, "title"]}
+                    label="Project Title"
+                    rules={[{ required: true, message: "Title is required" }]}
+                    className="w-full"
+                  >
+                    <Input placeholder="Enter project title" />
+                  </Form.Item>
+
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <Form.Item
-                      name={[name, "title"]}
-                      label="Project Title"
-                      rules={[{ required: true }]}
-                    >
-                      <Input />
-                    </Form.Item>
-                    <Form.Item
-                      name={[name, "description"]}
-                      label="Description"
-                      rules={[{ required: true }]}
-                    >
-                      <Input.TextArea rows={4} />
-                    </Form.Item>
-                    <Form.Item
-                      name={[name, "technologies"]}
-                      label="Technologies Used"
-                      rules={[{ required: true, type: "array" }]}
-                    >
-                      <Input placeholder="Comma-separated values" />
-                    </Form.Item>
-                    <Form.Item
+                      {...restField}
                       name={[name, "startDate"]}
                       label="Start Date"
-                      rules={[{ required: true }]}
+                      rules={[
+                        { required: true, message: "Start date is required" },
+                      ]}
                     >
                       <DatePicker className="w-full" />
                     </Form.Item>
                     <Form.Item
+                      {...restField}
                       name={[name, "endDate"]}
                       label="End Date"
-                      rules={[{ required: true }]}
                     >
                       <DatePicker className="w-full" />
                     </Form.Item>
-                    <Form.Item name={[name, "link"]} label="Project Link">
-                      <Input />
-                    </Form.Item>
                   </div>
+
+                  <Form.Item
+                    {...restField}
+                    name={[name, "description"]}
+                    label="Description"
+                    rules={[
+                      { required: true, message: "Description is required" },
+                    ]}
+                  >
+                    <TextArea
+                      placeholder="Describe the project, your role, and key achievements"
+                      rows={4}
+                      className="w-full"
+                    />
+                  </Form.Item>
+
+                  <Form.List name={[name, "technologies"]}>
+                    {(technologyFields, { add, remove }) => (
+                      <>
+                        {technologyFields.map(
+                          ({
+                            key,
+                            name: technologyName,
+                            ...restTechnologyField
+                          }) => (
+                            <Space
+                              key={key}
+                              align="baseline"
+                              className="w-full"
+                            >
+                              <Form.Item
+                                {...restTechnologyField}
+                                name={[technologyName]}
+                                className="w-full"
+                              >
+                                <Input placeholder="Technology (e.g., React, Node.js)" />
+                              </Form.Item>
+                              <Button
+                                type="link"
+                                danger
+                                onClick={() => remove(technologyName)}
+                                icon={<MinusCircleOutlined />}
+                              />
+                            </Space>
+                          )
+                        )}
+                        <Form.Item>
+                          <Button type="dashed" onClick={() => add()} block>
+                            Add Technology
+                          </Button>
+                        </Form.Item>
+                      </>
+                    )}
+                  </Form.List>
+
+                  <Form.Item
+                    {...restField}
+                    name={[name, "link"]}
+                    label="Project Link"
+                  >
+                    <Input placeholder="Optional: Add project link (e.g., GitHub)" />
+                  </Form.Item>
+
                   <Button
                     type="link"
                     danger
@@ -125,7 +167,7 @@ export const ProjectForm = ({ data, onChange }: ProjectFormProps) => {
         </Form.List>
         <Form.Item>
           <Button type="primary" htmlType="submit">
-            Save
+            Save Projects
           </Button>
         </Form.Item>
       </Form>
