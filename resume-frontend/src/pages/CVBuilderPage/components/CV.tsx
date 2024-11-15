@@ -101,7 +101,9 @@ export const CVTest = () => {
       {/* Header */}
       <header className="bg-white shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-          <h1 className="text-xl font-bold text-gray-900">CV Builder</h1>
+          {/* <h1 className="text-xl font-bold text-gray-900">CV Builder</h1> */}
+          <h1 className="text-xl font-bold text-gray-900"> </h1>
+
           <div className="flex items-center space-x-4">
             {/* Import button */}
             <label className="btn btn-outline btn-sm">
@@ -146,37 +148,36 @@ export const CVTest = () => {
       </header>
       <>
         <Layout>
+          {/* Sidebar */}
           <Sidebar
             activeSection={activeSection}
             onSectionChange={setActiveSection}
           />
 
-          <Content className="p-8">
-            <div className="grid grid-cols-2 gap-8">
-              <div className="space-y-6">
-                <CVForms
-                  data={cvData}
-                  onChange={handleDataChange}
-                  activeSection={activeSection}
-                />
-              </div>
+          {/* Main content */}
+          <Layout style={{ marginLeft: 260, transition: "margin-left 0.3s" }}>
+            <Content className="p-8">
+              <div className="grid grid-cols-2 gap-8">
+                {/* Forms Section */}
+                <div className="space-y-6">
+                  <CVForms
+                    data={cvData}
+                    onChange={handleDataChange}
+                    activeSection={activeSection}
+                  />
+                </div>
 
-              <div className="sticky top-0">
-                <CVPreviews data={cvData} />
+                {/* Preview Section */}
+                <div className="sticky top-0">
+                  <CVPreviews data={cvData} />
+                </div>
               </div>
-            </div>
-          </Content>
+            </Content>
+          </Layout>
         </Layout>
       </>
 
       {/* Footer */}
-      <footer className="bg-white border-t mt-8">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-          <p className="text-sm text-gray-500">
-            Remember to save your progress regularly
-          </p>
-        </div>
-      </footer>
     </div>
   );
 };
