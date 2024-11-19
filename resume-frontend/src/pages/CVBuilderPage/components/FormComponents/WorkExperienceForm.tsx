@@ -30,8 +30,8 @@ export const WorkExperienceForm = ({
           company: "",
           position: "",
           location: "",
-          startDate: "",
-          endDate: "",
+          startDate: null,
+          endDate: null,
           currentlyWorking: false,
           description: [],
           technologies: [],
@@ -49,6 +49,7 @@ export const WorkExperienceForm = ({
   return (
     <Card className="mb-8">
       <Form
+        layout="vertical"
         form={form}
         onFinish={onFinish}
         onValuesChange={onValuesChange}

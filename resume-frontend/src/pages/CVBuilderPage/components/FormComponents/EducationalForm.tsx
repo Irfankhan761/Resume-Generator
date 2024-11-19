@@ -11,6 +11,7 @@ import {
 import { PlusOutlined, MinusCircleOutlined } from "@ant-design/icons";
 import { Education } from "../types";
 
+// Props Interface
 interface EducationFormProps {
   data: Education[];
   onChange: (data: Education[]) => void;
@@ -40,8 +41,8 @@ export const EducationForm = ({ data, onChange }: EducationFormProps) => {
           institution: "",
           degree: "",
           field: "",
-          startDate: "",
-          endDate: "",
+          startDate: null,
+          endDate: null,
           gpa: "",
           achievements: [],
           current: false,
@@ -57,56 +58,105 @@ export const EducationForm = ({ data, onChange }: EducationFormProps) => {
   };
 
   return (
-    <Card className="mb-8">
+    <Card
+      className="mb-8"
+      style={{ background: "#fafafa", borderRadius: "8px", padding: "20px" }}
+    >
       <Form
         form={form}
         onFinish={onFinish}
         onValuesChange={onValuesChange}
         initialValues={{ education: data }}
+        layout="vertical"
       >
         <Form.List name="education">
           {(fields, { add, remove }) => (
             <>
               {fields.map(({ key, name, ...restField }) => (
-                <div key={key} className="border p-4 rounded-lg space-y-4">
+                <div
+                  key={key}
+                  className="border p-4 rounded-lg space-y-4"
+                  style={{ background: "#fff", borderRadius: "8px" }}
+                >
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <Form.Item
                       name={[name, "institution"]}
                       label="Institution"
-                      rules={[{ required: true }]}
+                      rules={[
+                        { required: true, message: "Institution is required" },
+                      ]}
                     >
-                      <Input />
+                      <Input
+                        placeholder="Enter the name of the institution"
+                        style={{
+                          background: "#f5f5f5",
+                          borderRadius: "4px",
+                        }}
+                      />
                     </Form.Item>
                     <Form.Item
                       name={[name, "degree"]}
                       label="Degree"
-                      rules={[{ required: true }]}
+                      rules={[
+                        { required: true, message: "Degree is required" },
+                      ]}
                     >
-                      <Input />
+                      <Input
+                        placeholder="Enter your degree (e.g., Bachelor's, Master's)"
+                        style={{
+                          background: "#f5f5f5",
+                          borderRadius: "4px",
+                        }}
+                      />
                     </Form.Item>
                     <Form.Item
                       name={[name, "field"]}
                       label="Field of Study"
-                      rules={[{ required: true }]}
+                      rules={[
+                        {
+                          required: true,
+                          message: "Field of Study is required",
+                        },
+                      ]}
                     >
-                      <Input />
+                      <Input
+                        placeholder="Enter your field of study"
+                        style={{
+                          background: "#f5f5f5",
+                          borderRadius: "4px",
+                        }}
+                      />
                     </Form.Item>
-                    <Form.Item name={[name, "gpa"]} label="GPA">
-                      <Input />
+                    <Form.Item name={[name, "gpa"]} label="Marks/GPA">
+                      <Input
+                        placeholder="Enter your GPA or marks (optional)"
+                        style={{
+                          background: "#f5f5f5",
+                          borderRadius: "4px",
+                        }}
+                      />
                     </Form.Item>
                     <Form.Item
                       name={[name, "startDate"]}
                       label="Start Date"
-                      rules={[{ required: true }]}
+                      rules={[
+                        { required: true, message: "Start date is required" },
+                      ]}
                     >
-                      <DatePicker className="w-full" />
+                      <DatePicker
+                        placeholder="Select start date"
+                        className="w-full"
+                      />
                     </Form.Item>
                     <Form.Item
                       name={[name, "endDate"]}
                       label="End Date"
-                      rules={[{ required: true }]}
+                      rules={[
+                        { required: true, message: "End date is required" },
+                      ]}
                     >
                       <DatePicker
+                        placeholder="Select end date"
                         className="w-full"
                         disabled={form.getFieldValue([
                           "education",
@@ -159,7 +209,13 @@ export const EducationForm = ({ data, onChange }: EducationFormProps) => {
                                 name={[achievementName]}
                                 className="w-full"
                               >
-                                <Input placeholder="Achievement" />
+                                <Input
+                                  placeholder="Enter an achievement"
+                                  style={{
+                                    background: "#f5f5f5",
+                                    borderRadius: "4px",
+                                  }}
+                                />
                               </Form.Item>
                               <Button
                                 type="link"

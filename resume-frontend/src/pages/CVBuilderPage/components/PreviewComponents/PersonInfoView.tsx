@@ -66,7 +66,7 @@ export const PersonalInfoPreview = ({ data }: PersonalInfoPreviewProps) => {
       {data.summary && (
         <div className="mt-4">
           <Title level={3} className="mb-2 flex justify-start">
-            Profile Summary
+            About Me
           </Title>
           <div className="text-start">
             <Text>{data.summary}</Text>

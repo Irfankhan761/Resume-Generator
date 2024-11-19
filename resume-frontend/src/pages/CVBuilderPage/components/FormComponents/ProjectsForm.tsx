@@ -1,7 +1,7 @@
 import { Card, Button, Form, Input, DatePicker, Space } from "antd";
 import { PlusOutlined, MinusCircleOutlined } from "@ant-design/icons";
-import { Project } from "../types";
 import TextArea from "antd/es/input/TextArea";
+import { Project } from "../types";
 
 interface ProjectFormProps {
   data: Project[];
@@ -28,8 +28,8 @@ export const ProjectForm = ({ data, onChange }: ProjectFormProps) => {
           title: "",
           description: "",
           technologies: [],
-          startDate: "",
-          endDate: "",
+          startDate: null,
+          endDate: null,
           link: "",
         },
       ],
@@ -43,24 +43,31 @@ export const ProjectForm = ({ data, onChange }: ProjectFormProps) => {
   };
 
   return (
-    <Card className="mb-8">
+    <Card
+      className="mb-8"
+      style={{ background: "#fafafa", borderRadius: "8px", padding: "20px" }}
+    >
       <Form
         form={form}
         onFinish={onFinish}
         onValuesChange={onValuesChange}
         initialValues={{ projects: data }}
+        layout="vertical" // Ensures labels are on top
       >
         <Form.List name="projects">
           {(fields, { add, remove }) => (
             <>
               {fields.map(({ key, name, ...restField }) => (
-                <div key={key} className="border p-4 rounded-lg space-y-4">
+                <div
+                  key={key}
+                  className="border p-4 rounded-lg space-y-4"
+                  style={{ background: "#fff", borderRadius: "8px" }}
+                >
                   <Form.Item
                     {...restField}
                     name={[name, "title"]}
                     label="Project Title"
                     rules={[{ required: true, message: "Title is required" }]}
-                    className="w-full"
                   >
                     <Input placeholder="Enter project title" />
                   </Form.Item>
@@ -74,14 +81,20 @@ export const ProjectForm = ({ data, onChange }: ProjectFormProps) => {
                         { required: true, message: "Start date is required" },
                       ]}
                     >
-                      <DatePicker className="w-full" />
+                      <DatePicker
+                        placeholder="Select start date"
+                        className="w-full"
+                      />
                     </Form.Item>
                     <Form.Item
                       {...restField}
                       name={[name, "endDate"]}
                       label="End Date"
                     >
-                      <DatePicker className="w-full" />
+                      <DatePicker
+                        placeholder="Select end date"
+                        className="w-full"
+                      />
                     </Form.Item>
                   </div>
 
@@ -117,6 +130,7 @@ export const ProjectForm = ({ data, onChange }: ProjectFormProps) => {
                               <Form.Item
                                 {...restTechnologyField}
                                 name={[technologyName]}
+                                label="Technology"
                                 className="w-full"
                               >
                                 <Input placeholder="Technology (e.g., React, Node.js)" />
