@@ -12,7 +12,10 @@ const Navbar: React.FC = () => {
   };
 
   const handleCreateCVNavigation = () => {
-    navigate("/create-cv"); // Navigate to the CV builder route
+    navigate("/create-cv");
+  };
+  const handleLogin = () => {
+    navigate("/login");
   };
 
   const navLinks = [
@@ -48,9 +51,11 @@ const Navbar: React.FC = () => {
             <Button
               className="px-5 py-2 text-blue-600 border border-blue-600 rounded-full hover:bg-blue-100 transition-all font-medium"
               aria-label="Login"
+              onClick={handleLogin}
             >
               Login
             </Button>
+
             <Button
               type="primary"
               className={`px-5 py-2 bg-blue-600 text-white rounded-full
