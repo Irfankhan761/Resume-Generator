@@ -7,12 +7,8 @@ const HeroSection: React.FC = () => {
 
   const navigate = useNavigate();
 
-  const handleCreateCVNavigation = () => {
+  const handleCreateCV = () => {
     navigate("/create-cv"); // Navigate to the CV builder route
-  };
-
-  const handleCreatemm = () => {
-    navigate("/create-mm"); // Navigate to the CV builder route
   };
   return (
     <div className="container mx-auto px-4 pt-16 text-center">
@@ -32,7 +28,7 @@ const HeroSection: React.FC = () => {
           size="large"
           icon={<FileAddOutlined />}
           className="bg-blue-600 hover:bg-blue-700"
-          onClick={handleCreatemm}
+          onClick={handleCreateCV}
         >
           Import Existing Resume
         </Button>
@@ -41,7 +37,7 @@ const HeroSection: React.FC = () => {
           size="large"
           icon={<FileTextOutlined />}
           className="border-blue-600 text-blue-600 hover:border-blue-700"
-          onClick={handleCreateCVNavigation}
+          onClick={handleCreateCV}
         >
           Create New CV
         </Button>

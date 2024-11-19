@@ -33,7 +33,7 @@ const initialData: CVData = {
   skills: [],
 };
 
-export const CVTest = () => {
+export const CV = () => {
   // State management
   const [activeSection, setActiveSection] =
     useState<CVSection>("Personal Info");
