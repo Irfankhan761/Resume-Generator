@@ -1,16 +1,14 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import type { CVData } from "./types";
 import { Sidebar } from "./sidebar";
 import { CVForms } from "./CVForm";
 import { CVPreviews } from "./CVPreview";
 import { ArrowDownToLine } from "lucide-react";
 import { Layout } from "antd";
-import jsPDF from "jspdf";
-import html2canvas from "html2canvas";
+import html2pdf from "html2pdf.js";
 
 const { Content } = Layout;
 
-// Define sections for type safety
 export type CVSection =
   | "Personal Info"
   | "Education"
@@ -42,6 +40,7 @@ export const CV = () => {
     useState<CVSection>("Personal Info");
   const [cvData, setCVData] = useState<CVData>(initialData);
   const [isSaving, setIsSaving] = useState(false);
+  const previewRef = useRef<HTMLDivElement>(null);
 
   const handleDataChange = useCallback((newData: CVData) => {
     setCVData(newData);
@@ -49,40 +48,53 @@ export const CV = () => {
   }, []);
 
   const handleExportAsPDF = useCallback(async () => {
+    if (!previewRef.current) return;
+
+    setIsSaving(true);
     try {
-      setIsSaving(true);
+      const element = previewRef.current;
+      const opt = {
+        margin: [10, 10, 10, 10],
+        filename: `${cvData.personalInfo.fullName.replace(/\s+/g, "_")}_CV.pdf`,
+        image: { type: "jpeg", quality: 0.98 },
+        html2canvas: {
+          scale: 2,
+          useCORS: true,
+          letterRendering: true,
+          logging: false,
+        },
+        jsPDF: {
+          unit: "mm",
+          format: "a4",
+          orientation: "portrait",
+          compress: true,
+        },
+        pagebreak: { mode: "avoid-all" },
+        enableLinks: true,
+      };
 
-      const element = document.getElementById("cv-preview");
-      if (!element) throw new Error("Preview section not found");
+      const clonedElement = element.cloneNode(true) as HTMLElement;
 
-      const pdf = new jsPDF("p", "mm", "a4");
-      const pdfWidth = pdf.internal.pageSize.getWidth();
-      const pdfHeight = pdf.internal.pageSize.getHeight();
-
-      const canvas = await html2canvas(element, {
-        scale: 2,
-        useCORS: true,
+      clonedElement.querySelectorAll("a").forEach((link) => {
+        if (link.href.startsWith("/")) {
+          link.href = window.location.origin + link.href;
+        }
       });
 
-      const imgData = canvas.toDataURL("image/png");
-      const imgWidth = pdfWidth;
-      const imgHeight = (canvas.height * imgWidth) / canvas.width;
+      clonedElement.querySelectorAll(".anticon").forEach((icon) => {
+        icon.classList.add("pdf-visible");
+      });
 
-      let yOffset = 0;
-      while (yOffset < imgHeight) {
-        pdf.addImage(imgData, "PNG", 0, -yOffset, imgWidth, imgHeight);
-
-        yOffset += pdfHeight;
-        if (yOffset < imgHeight) pdf.addPage();
-      }
-
-      pdf.save(`cv-${new Date().toISOString().split("T")[0]}.pdf`);
+      await html2pdf()
+        .set(opt as any)
+        .from(clonedElement)
+        .save();
     } catch (error) {
-      console.error("Error exporting CV as PDF:", error);
+      console.error("Error generating PDF:", error);
     } finally {
       setIsSaving(false);
     }
-  }, []);
+  }, [cvData.personalInfo.fullName]);
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -102,7 +114,6 @@ export const CV = () => {
           </div>
         </div>
       </header>
-
       <Layout>
         <Sidebar
           activeSection={activeSection}
@@ -119,7 +130,9 @@ export const CV = () => {
                 />
               </div>
               <div className="sticky top-0" id="cv-preview">
-                <CVPreviews data={cvData} />
+                <div ref={previewRef}>
+                  <CVPreviews data={cvData} />
+                </div>
               </div>
             </div>
           </Content>
