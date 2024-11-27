@@ -6,7 +6,6 @@ import { Route, Routes } from "react-router-dom";
 import { CV } from "./pages/CVBuilderPage/components/CV";
 import LoginPage from "./pages/AuthPage/Login/Login";
 import SignupPage from "./pages/AuthPage/Sigup/SignUp";
-import AuthPage from "./pages/AuthPage/Login/Login";
 
 function App() {
   return (
@@ -14,8 +13,8 @@ function App() {
       <Routes>
         <Route path="/" element={<LandingPage />} />
         <Route path="/create-cv" element={<CV />} />
-        {/* <Route path="/login" element={<LoginPage />} /> */}
-        <Route path="/login" element={<AuthPage />} />
+        <Route path="/login" element={<LoginPage />} />
+
         <Route path="/signup" element={<SignupPage />} />
       </Routes>
     </>
