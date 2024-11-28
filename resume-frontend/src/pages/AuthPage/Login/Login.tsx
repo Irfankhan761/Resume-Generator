@@ -1,4 +1,3 @@
-/* eslint-disable jsx-a11y/anchor-is-valid */
 import React from "react";
 import { Form, Input, Button, Card, Checkbox } from "antd";
 import { UserOutlined, LockOutlined } from "@ant-design/icons";
@@ -57,7 +56,7 @@ const LoginPage = () => {
           </Form.Item>
 
           <div className="flex justify-between text-sm">
-            <a href="#" className="text-blue-600">
+            <a href="#Forgot" className="text-blue-600">
               Forgot password?
             </a>
             <a href="/signup" className="text-blue-600">
