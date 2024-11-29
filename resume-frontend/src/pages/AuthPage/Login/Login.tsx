@@ -56,7 +56,7 @@ const LoginPage = () => {
           </Form.Item>
 
           <div className="flex justify-between text-sm">
-            <a href="#Forgot" className="text-blue-600">
+            <a href="#ForgotPassword" className="text-blue-600">
               Forgot password?
             </a>
             <a href="/signup" className="text-blue-600">
