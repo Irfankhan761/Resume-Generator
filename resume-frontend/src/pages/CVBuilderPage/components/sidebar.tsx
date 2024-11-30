@@ -36,23 +36,22 @@ export const Sidebar = ({ activeSection, onSectionChange }: SidebarProps) => {
         position: "fixed",
         top: 0,
         left: 0,
-        backgroundColor: "#0E2433", // Darker blue for a sleek design
-        height: "100vh", // Full height
-        boxShadow: "2px 0 10px rgba(0, 0, 0, 0.15)", // Soft shadow for depth
+        backgroundColor: "#0E2433",
+        height: "100vh",
+        boxShadow: "2px 0 10px rgba(0, 0, 0, 0.15)",
         display: "flex",
         flexDirection: "column",
       }}
     >
-      {/* Branding Section */}
       <div
         style={{
           textAlign: "center",
           padding: "20px",
-          borderBottom: "1px solid rgba(255, 255, 255, 0.1)", // Subtle divider
+          borderBottom: "1px solid rgba(255, 255, 255, 0.1)",
         }}
       >
         <h2 style={{ color: "#EAF4F4", fontWeight: "bold", fontSize: "20px" }}>
-          My CV
+          CV
         </h2>
         <p style={{ color: "#98B4C1", fontSize: "14px", margin: 0 }}>
           Navigate your journey
