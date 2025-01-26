@@ -17,7 +17,7 @@ RUN npm install --force
 COPY . .
 
 # Expose the port the app runs on
-EXPOSE 5173
+EXPOSE 3000
 
 # Set the command to run the app in development mode
 CMD ["npm", "run", "start"]

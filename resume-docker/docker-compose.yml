@@ -51,7 +51,8 @@ services:
       context: ../resume-frontend
       dockerfile: Dockerfile
     ports:
-      - 5173:5173
+      - 3000:3000
+      # - 5173:5173 for vite project only
     volumes:
       - ../resume-frontend:/app
     command: >

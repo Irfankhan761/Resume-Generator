@@ -39,7 +39,7 @@ Make a single directory for the project and required repository inside that fold
    - **pgAdmin**: http://localhost:5050
      - Default Email: `admin@admin.com`
      - Default Password: `admin`
-   - **CMS UI**: http://localhost:5173
+   - **CMS UI**: http://localhost:3000
 
 4. **Run DB Migration**
    Run the database migration
@@ -94,7 +94,7 @@ Make a single directory for the project and required repository inside that fold
 
 - **Build Context**: `../resume-website`
 - **Dockerfile**: `Dockerfile`
-- **Ports**: `5173:5173`
+- **Ports**: `3000:3000`
 - **Volumes**:
   - `../resume-website:/app`
   - `resume-ui-data:/app/node_modules`
