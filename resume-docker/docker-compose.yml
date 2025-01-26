@@ -1,3 +1,4 @@
+version: "3.8"
 services:
   backend:
     build:
@@ -10,12 +11,14 @@ services:
     depends_on:
       - db
     environment:
+      - NODE_ENV=development  # Ensure you set the environment
       - DB_CONNECTION=pg
       - DB_HOST=db
       - DB_PORT=5432
       - DB_USER=resume_user
       - DB_PASSWORD=password
       - DB_DATABASE=resume_website
+      - HOST=0.0.0.0 # Add this for backend to listen on all interfaces
     command: >
       /bin/sh -c "npm install && npm run dev"
   db:
@@ -45,12 +48,12 @@ services:
       - db
   website-ui:
     build:
-      context: ../resume-website
+      context: ../resume-frontend
       dockerfile: Dockerfile
     ports:
       - 5173:5173
     volumes:
-      - ../resume-website:/app
+      - ../resume-frontend:/app
     command: >
       /bin/sh -c "npm install && npm run start"
     restart: always
@@ -58,7 +61,3 @@ services:
 volumes:
   pgdata:
   pgadmin-data:
-  backend-data:
-  website-ui-data:
-
-
