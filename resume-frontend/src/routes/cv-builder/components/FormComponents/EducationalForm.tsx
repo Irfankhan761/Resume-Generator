@@ -7,11 +7,10 @@ import {
   Space,
   Switch,
   FormListFieldData,
-} from "antd";
-import { PlusOutlined, MinusCircleOutlined } from "@ant-design/icons";
-import { Education } from "../../types/types";
+} from 'antd';
+import { PlusOutlined, MinusCircleOutlined } from '@ant-design/icons';
+import { Education } from '../../types/types';
 
-// Props Interface
 interface EducationFormProps {
   data: Education[];
   onChange: (data: Education[]) => void;
@@ -38,12 +37,12 @@ export const EducationForm = ({ data, onChange }: EducationFormProps) => {
         ...data,
         {
           id: Date.now().toString(),
-          institution: "",
-          degree: "",
-          field: "",
+          institution: '',
+          degree: '',
+          field: '',
           startDate: null,
           endDate: null,
-          gpa: "",
+          gpa: '',
           achievements: [],
           current: false,
         },
@@ -52,7 +51,7 @@ export const EducationForm = ({ data, onChange }: EducationFormProps) => {
   };
 
   const onRemove = (index: number) => {
-    const education = form.getFieldValue("education");
+    const education = form.getFieldValue('education');
     education.splice(index, 1);
     form.setFieldsValue({ education });
   };
@@ -60,7 +59,7 @@ export const EducationForm = ({ data, onChange }: EducationFormProps) => {
   return (
     <Card
       className="mb-8"
-      style={{ background: "#fafafa", borderRadius: "8px", padding: "20px" }}
+      style={{ background: '#fafafa', borderRadius: '8px', padding: '20px' }}
     >
       <Form
         form={form}
@@ -76,71 +75,71 @@ export const EducationForm = ({ data, onChange }: EducationFormProps) => {
                 <div
                   key={key}
                   className="border p-4 rounded-lg space-y-4"
-                  style={{ background: "#fff", borderRadius: "8px" }}
+                  style={{ background: '#fff', borderRadius: '8px' }}
                 >
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <Form.Item
-                      name={[name, "institution"]}
+                      name={[name, 'institution']}
                       label="Institution"
                       rules={[
-                        { required: true, message: "Institution is required" },
+                        { required: true, message: 'Institution is required' },
                       ]}
                     >
                       <Input
                         placeholder="Enter the name of the institution"
                         style={{
-                          background: "#f5f5f5",
-                          borderRadius: "4px",
+                          background: '#f5f5f5',
+                          borderRadius: '4px',
                         }}
                       />
                     </Form.Item>
                     <Form.Item
-                      name={[name, "degree"]}
+                      name={[name, 'degree']}
                       label="Degree"
                       rules={[
-                        { required: true, message: "Degree is required" },
+                        { required: true, message: 'Degree is required' },
                       ]}
                     >
                       <Input
                         placeholder="Enter your degree (e.g., Bachelor's, Master's)"
                         style={{
-                          background: "#f5f5f5",
-                          borderRadius: "4px",
+                          background: '#f5f5f5',
+                          borderRadius: '4px',
                         }}
                       />
                     </Form.Item>
                     <Form.Item
-                      name={[name, "field"]}
+                      name={[name, 'field']}
                       label="Field of Study"
                       rules={[
                         {
                           required: true,
-                          message: "Field of Study is required",
+                          message: 'Field of Study is required',
                         },
                       ]}
                     >
                       <Input
                         placeholder="Enter your field of study"
                         style={{
-                          background: "#f5f5f5",
-                          borderRadius: "4px",
+                          background: '#f5f5f5',
+                          borderRadius: '4px',
                         }}
                       />
                     </Form.Item>
-                    <Form.Item name={[name, "gpa"]} label="Marks/GPA">
+                    <Form.Item name={[name, 'gpa']} label="Marks/GPA">
                       <Input
                         placeholder="Enter your GPA or marks (optional)"
                         style={{
-                          background: "#f5f5f5",
-                          borderRadius: "4px",
+                          background: '#f5f5f5',
+                          borderRadius: '4px',
                         }}
                       />
                     </Form.Item>
                     <Form.Item
-                      name={[name, "startDate"]}
+                      name={[name, 'startDate']}
                       label="Start Date"
                       rules={[
-                        { required: true, message: "Start date is required" },
+                        { required: true, message: 'Start date is required' },
                       ]}
                     >
                       <DatePicker
@@ -149,24 +148,24 @@ export const EducationForm = ({ data, onChange }: EducationFormProps) => {
                       />
                     </Form.Item>
                     <Form.Item
-                      name={[name, "endDate"]}
+                      name={[name, 'endDate']}
                       label="End Date"
                       rules={[
-                        { required: true, message: "End date is required" },
+                        { required: true, message: 'End date is required' },
                       ]}
                     >
                       <DatePicker
                         placeholder="Select end date"
                         className="w-full"
                         disabled={form.getFieldValue([
-                          "education",
+                          'education',
                           name,
-                          "current",
+                          'current',
                         ])}
                       />
                     </Form.Item>
                     <Form.Item
-                      name={[name, "current"]}
+                      name={[name, 'current']}
                       label="Currently studying here"
                       valuePropName="checked"
                     >
@@ -174,7 +173,7 @@ export const EducationForm = ({ data, onChange }: EducationFormProps) => {
                         onChange={(checked) => {
                           form.setFieldsValue({
                             education: form
-                              .getFieldValue("education")
+                              .getFieldValue('education')
                               .map((edu: Education) =>
                                 edu.id ===
                                 (fields as EducationFormListField[]).find(
@@ -184,13 +183,13 @@ export const EducationForm = ({ data, onChange }: EducationFormProps) => {
                                   : edu
                               ),
                           });
-                          onChange(form.getFieldValue("education"));
+                          onChange(form.getFieldValue('education'));
                         }}
                       />
                     </Form.Item>
                   </div>
 
-                  <Form.List name={[name, "achievements"]}>
+                  <Form.List name={[name, 'achievements']}>
                     {(achievementFields, { add, remove }) => (
                       <>
                         {achievementFields.map(
@@ -212,8 +211,8 @@ export const EducationForm = ({ data, onChange }: EducationFormProps) => {
                                 <Input
                                   placeholder="Enter an achievement"
                                   style={{
-                                    background: "#f5f5f5",
-                                    borderRadius: "4px",
+                                    background: '#f5f5f5',
+                                    borderRadius: '4px',
                                   }}
                                 />
                               </Form.Item>

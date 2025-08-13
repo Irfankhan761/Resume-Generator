@@ -1,5 +1,5 @@
-import React from "react";
-import { Card, Form, Input, Row, Col } from "antd";
+import React from 'react';
+import { Card, Form, Input, Row, Col } from 'antd';
 import {
   UserOutlined,
   MailOutlined,
@@ -8,10 +8,9 @@ import {
   GlobalOutlined,
   CompassOutlined,
   GithubOutlined,
-} from "@ant-design/icons";
-import type { PersonalInfo } from "../../types/types";
+} from '@ant-design/icons';
+import type { PersonalInfo } from '../../types/types';
 
-// Props Interface
 interface PersonalInfoFormProps {
   data: PersonalInfo;
   onChange: (data: PersonalInfo) => void;
@@ -23,39 +22,72 @@ export const PersonalInfoForm: React.FC<PersonalInfoFormProps> = ({
 }) => {
   const [form] = Form.useForm();
 
-  // Handle Form Value Changes
   const handleValuesChange = (_: any, allValues: PersonalInfo) => {
     onChange(allValues);
   };
 
   return (
     <Card
-      title="Personal Information"
+      title={
+        <span
+          style={{
+            fontSize: '20px',
+            fontWeight: '600',
+            color: '#2c3e50',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+          }}
+        >
+          <UserOutlined style={{ color: '#3498db' }} />
+          Personal Information
+        </span>
+      }
       className="mb-8"
-      style={{ background: "#fafafa", borderRadius: "8px", padding: "20px" }}
+      headStyle={{ borderBottom: '1px solid #e8e8e8', padding: '0 24px' }}
+      bodyStyle={{ padding: '24px' }}
+      style={{
+        background: '#ffffff',
+        borderRadius: '12px',
+        boxShadow: '0 4px 12px rgba(0, 0, 0, 0.05)',
+        border: '1px solid #e8e8e8',
+        transition: 'all 0.3s ease',
+      }}
+      hoverable
     >
       <Form
         form={form}
         layout="vertical"
         initialValues={data}
         onValuesChange={handleValuesChange}
-        style={{ width: "100%" }}
+        style={{ width: '100%' }}
       >
-        <Row gutter={[16, 16]}>
+        <Row gutter={[24, 16]}>
           {/* Full Name */}
           <Col xs={24} md={12}>
             <Form.Item
               name="fullName"
-              label="Full Name"
+              label={
+                <span style={{ fontWeight: '500', color: '#34495e' }}>
+                  Full Name
+                </span>
+              }
               rules={[
-                { required: true, message: "Full Name is required" },
-                { min: 2, message: "Name must be at least 2 characters" },
+                { required: true, message: 'Full Name is required' },
+                { min: 2, message: 'Name must be at least 2 characters' },
               ]}
             >
               <Input
-                prefix={<UserOutlined />}
+                prefix={<UserOutlined style={{ color: '#7f8c8d' }} />}
                 placeholder="Enter your full name"
-                style={{ background: "#f5f5f5", borderRadius: "4px" }}
+                style={{
+                  background: '#ffffff',
+                  borderRadius: '8px',
+                  padding: '10px 12px',
+                  border: '1px solid #e0e0e0',
+                  transition: 'all 0.3s',
+                }}
+                className="hoverable-input"
               />
             </Form.Item>
           </Col>
@@ -64,12 +96,23 @@ export const PersonalInfoForm: React.FC<PersonalInfoFormProps> = ({
           <Col xs={24} md={12}>
             <Form.Item
               name="jobTitle"
-              label="Job Title"
-              rules={[{ required: true, message: "Job Title is required" }]}
+              label={
+                <span style={{ fontWeight: '500', color: '#34495e' }}>
+                  Job Title
+                </span>
+              }
+              rules={[{ required: true, message: 'Job Title is required' }]}
             >
               <Input
                 placeholder="Enter your job title"
-                style={{ background: "#f5f5f5", borderRadius: "4px" }}
+                style={{
+                  background: '#ffffff',
+                  borderRadius: '8px',
+                  padding: '10px 12px',
+                  border: '1px solid #e0e0e0',
+                  transition: 'all 0.3s',
+                }}
+                className="hoverable-input"
               />
             </Form.Item>
           </Col>
@@ -78,16 +121,27 @@ export const PersonalInfoForm: React.FC<PersonalInfoFormProps> = ({
           <Col xs={24} md={12}>
             <Form.Item
               name="email"
-              label="Email"
+              label={
+                <span style={{ fontWeight: '500', color: '#34495e' }}>
+                  Email
+                </span>
+              }
               rules={[
-                { required: true, message: "Email is required" },
-                { type: "email", message: "Invalid email format" },
+                { required: true, message: 'Email is required' },
+                { type: 'email', message: 'Invalid email format' },
               ]}
             >
               <Input
-                prefix={<MailOutlined />}
+                prefix={<MailOutlined style={{ color: '#7f8c8d' }} />}
                 placeholder="Enter your email"
-                style={{ background: "#f5f5f5", borderRadius: "4px" }}
+                style={{
+                  background: '#ffffff',
+                  borderRadius: '8px',
+                  padding: '10px 12px',
+                  border: '1px solid #e0e0e0',
+                  transition: 'all 0.3s',
+                }}
+                className="hoverable-input"
               />
             </Form.Item>
           </Col>
@@ -96,63 +150,130 @@ export const PersonalInfoForm: React.FC<PersonalInfoFormProps> = ({
           <Col xs={24} md={12}>
             <Form.Item
               name="phone"
-              label="Phone"
+              label={
+                <span style={{ fontWeight: '500', color: '#34495e' }}>
+                  Phone
+                </span>
+              }
               rules={[
-                { required: true, message: "Phone is required" },
+                { required: true, message: 'Phone is required' },
                 {
                   pattern: /^\+?[\d\s-]{10,}$/,
-                  message: "Enter a valid phone number",
+                  message: 'Enter a valid phone number',
                 },
               ]}
             >
               <Input
-                prefix={<PhoneOutlined />}
+                prefix={<PhoneOutlined style={{ color: '#7f8c8d' }} />}
                 placeholder="Enter your phone number"
-                style={{ background: "#f5f5f5", borderRadius: "4px" }}
+                style={{
+                  background: '#ffffff',
+                  borderRadius: '8px',
+                  padding: '10px 12px',
+                  border: '1px solid #e0e0e0',
+                  transition: 'all 0.3s',
+                }}
+                className="hoverable-input"
               />
             </Form.Item>
           </Col>
 
           {/* Location */}
           <Col xs={24} md={12}>
-            <Form.Item name="location" label="Location">
+            <Form.Item
+              name="location"
+              label={
+                <span style={{ fontWeight: '500', color: '#34495e' }}>
+                  Location
+                </span>
+              }
+            >
               <Input
-                prefix={<CompassOutlined />}
+                prefix={<CompassOutlined style={{ color: '#7f8c8d' }} />}
                 placeholder="Enter your location"
-                style={{ background: "#f5f5f5", borderRadius: "4px" }}
+                style={{
+                  background: '#ffffff',
+                  borderRadius: '8px',
+                  padding: '10px 12px',
+                  border: '1px solid #e0e0e0',
+                  transition: 'all 0.3s',
+                }}
+                className="hoverable-input"
               />
             </Form.Item>
           </Col>
 
           {/* Website */}
           <Col xs={24} md={12}>
-            <Form.Item name="website" label="Website">
+            <Form.Item
+              name="website"
+              label={
+                <span style={{ fontWeight: '500', color: '#34495e' }}>
+                  Website
+                </span>
+              }
+            >
               <Input
-                prefix={<GlobalOutlined />}
+                prefix={<GlobalOutlined style={{ color: '#7f8c8d' }} />}
                 placeholder="Enter your website"
-                style={{ background: "#f5f5f5", borderRadius: "4px" }}
+                style={{
+                  background: '#ffffff',
+                  borderRadius: '8px',
+                  padding: '10px 12px',
+                  border: '1px solid #e0e0e0',
+                  transition: 'all 0.3s',
+                }}
+                className="hoverable-input"
               />
             </Form.Item>
           </Col>
 
           {/* LinkedIn */}
           <Col xs={24} md={12}>
-            <Form.Item name="linkedin" label="LinkedIn">
+            <Form.Item
+              name="linkedin"
+              label={
+                <span style={{ fontWeight: '500', color: '#34495e' }}>
+                  LinkedIn
+                </span>
+              }
+            >
               <Input
-                prefix={<LinkedinOutlined />}
+                prefix={<LinkedinOutlined style={{ color: '#0077b5' }} />}
                 placeholder="Enter your LinkedIn profile"
-                style={{ background: "#f5f5f5", borderRadius: "4px" }}
+                style={{
+                  background: '#ffffff',
+                  borderRadius: '8px',
+                  padding: '10px 12px',
+                  border: '1px solid #e0e0e0',
+                  transition: 'all 0.3s',
+                }}
+                className="hoverable-input"
               />
             </Form.Item>
           </Col>
 
           {/* GitHub */}
           <Col xs={24} md={12}>
-            <Form.Item name="github" label="GitHub">
+            <Form.Item
+              name="github"
+              label={
+                <span style={{ fontWeight: '500', color: '#34495e' }}>
+                  GitHub
+                </span>
+              }
+            >
               <Input
-                prefix={<GithubOutlined />}
+                prefix={<GithubOutlined style={{ color: '#333' }} />}
                 placeholder="Enter your GitHub profile"
-                style={{ background: "#f5f5f5", borderRadius: "4px" }}
+                style={{
+                  background: '#ffffff',
+                  borderRadius: '8px',
+                  padding: '10px 12px',
+                  border: '1px solid #e0e0e0',
+                  transition: 'all 0.3s',
+                }}
+                className="hoverable-input"
               />
             </Form.Item>
           </Col>
@@ -161,19 +282,30 @@ export const PersonalInfoForm: React.FC<PersonalInfoFormProps> = ({
           <Col xs={24}>
             <Form.Item
               name="summary"
-              label="Summary"
+              label={
+                <span style={{ fontWeight: '500', color: '#34495e' }}>
+                  Summary
+                </span>
+              }
               rules={[
-                { required: true, message: "Summary is required" },
+                { required: true, message: 'Summary is required' },
                 {
                   min: 50,
-                  message: "Summary should be at least 50 characters",
+                  message: 'Summary should be at least 50 characters',
                 },
               ]}
             >
               <Input.TextArea
                 rows={4}
                 placeholder="Write a brief professional summary"
-                style={{ background: "#f5f5f5", borderRadius: "4px" }}
+                style={{
+                  background: '#ffffff',
+                  borderRadius: '8px',
+                  padding: '12px',
+                  border: '1px solid #e0e0e0',
+                  transition: 'all 0.3s',
+                }}
+                className="hoverable-input"
               />
             </Form.Item>
           </Col>
