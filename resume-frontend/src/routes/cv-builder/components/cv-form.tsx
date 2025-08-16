@@ -1,9 +1,9 @@
-import { PersonalInfoForm } from './FormComponents/PersonalInfoForm';
-import { EducationForm } from './FormComponents/EducationalForm';
+import { PersonalInfoForm } from './form-components/personal-info-form';
+import { EducationForm } from './form-components/educational-form';
 import type { CVData } from '../types/types';
-import { WorkExperienceForm } from './FormComponents/WorkExperienceForm';
-import { ProjectForm } from './FormComponents/ProjectsForm';
-import { SkillForm } from './FormComponents/SkillsForm';
+import { WorkExperienceForm } from './form-components/work-experience-form';
+import { ProjectForm } from './form-components/project-form';
+import { SkillForm } from './form-components/skills-form';
 
 interface CVFormsProps {
   data: CVData;
