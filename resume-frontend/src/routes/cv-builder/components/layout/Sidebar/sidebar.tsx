@@ -58,6 +58,7 @@ export const Sidebar = ({
       okType: 'danger',
       cancelText: 'Cancel',
       centered: true,
+      maskClosable: true,
       onOk() {
         navigate('/');
       },
@@ -74,32 +75,33 @@ export const Sidebar = ({
       collapsed={collapsed}
       trigger={null}
       collapsible
-      className={className}
+      className={`${className} shadow-lg`}
       style={{
         position: 'fixed',
         left: 0,
-        background: '#0E2433',
-        boxShadow: '4px 0 15px rgba(0, 0, 0, 0.2)',
+        background: 'white',
+        boxShadow: '2px 0 10px rgba(0, 0, 0, 0.05)',
         display: 'flex',
         flexDirection: 'column',
         zIndex: 40,
-        transition: 'all 0.3s ease',
-        borderRight: '1px solid rgba(255, 255, 255, 0.1)',
+        transition: 'all 0.2s cubic-bezier(0.2, 0, 0, 1)',
+        borderRight: '1px solid #f0f0f0',
       }}
     >
       {!collapsed && (
-        <div className="px-4 py-3 border-b border-[rgba(255,255,255,0.1)] bg-[rgba(255,255,255,0.03)]">
+        <div className="px-4 py-3 border-b border-gray-100 bg-white">
           <Input
             placeholder="Search sections..."
-            prefix={<SearchOutlined className="text-[#4DBCE9]" />}
+            prefix={<SearchOutlined className="text-gray-400" />}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="bg-[rgba(255,255,255,0.05)] border-[rgba(255,255,255,0.1)] text-[#EAF4F4)]"
+            className="bg-gray-50 border-gray-200 hover:border-blue-300 focus:border-blue-400"
+            allowClear
           />
         </div>
       )}
 
-      <div className="flex-1 overflow-auto py-2 px-1">
+      <div className="flex-1 overflow-auto py-4 px-1">
         {filteredSections.map((section) => (
           <div
             key={section.key}
@@ -112,35 +114,31 @@ export const Sidebar = ({
               } 
               h-12 ${
                 collapsed ? 'px-0' : 'px-3'
-              } mb-1 rounded cursor-pointer transition-all
+              } mb-1 rounded-lg mx-2 cursor-pointer transition-all duration-200
               ${
                 activeSection === section.key
-                  ? 'bg-[rgba(77,188,233,0.15)] border border-[rgba(77,188,233,0.3)]'
+                  ? 'bg-blue-50 border-l-4 border-blue-500'
                   : hoverKey === section.key
-                  ? 'bg-[rgba(255,255,255,0.05)]'
-                  : 'bg-transparent border-transparent'
+                  ? 'bg-blue-50'
+                  : 'bg-transparent'
               }
             `}
           >
             <div
               className={`
-              w-8 h-8 rounded flex items-center justify-center transition-all
+              w-9 h-9 rounded-lg flex items-center justify-center transition-all
               ${
                 activeSection === section.key
-                  ? 'bg-[rgba(77,188,233,0.2)]'
+                  ? 'bg-blue-500 text-white'
                   : hoverKey === section.key
-                  ? 'bg-[rgba(255,255,255,0.1)]'
-                  : 'bg-[rgba(255,255,255,0.05)]'
+                  ? 'bg-blue-100 text-blue-600'
+                  : 'bg-gray-100 text-gray-500'
               }
               ${collapsed ? 'mr-0' : 'mr-3'}
             `}
             >
               {React.cloneElement(section.icon as React.ReactElement, {
-                className: `text-base ${
-                  activeSection === section.key
-                    ? 'text-[#4DBCE9]'
-                    : 'text-[#98B4C1]'
-                }`,
+                className: `text-base`,
               })}
             </div>
             {!collapsed && (
@@ -149,8 +147,8 @@ export const Sidebar = ({
                 text-sm transition-all
                 ${
                   activeSection === section.key
-                    ? 'font-semibold text-[#EAF4F4]'
-                    : 'font-normal text-[#98B4C1]'
+                    ? 'font-semibold text-gray-800'
+                    : 'font-normal text-gray-600'
                 }
               `}
               >
@@ -161,7 +159,7 @@ export const Sidebar = ({
         ))}
       </div>
 
-      <div className="px-4 py-3 border-t border-[rgba(255,255,255,0.1)] bg-[rgba(0,0,0,0.1)]">
+      <div className="px-4 py-3 border-t border-gray-100 bg-white">
         <Button
           onClick={showLogoutConfirm}
           icon={<LogoutOutlined />}
@@ -169,12 +167,16 @@ export const Sidebar = ({
           block
           className={`flex items-center justify-center ${
             collapsed ? 'px-0' : 'px-3'
-          } text-[#98B4C1] hover:text-[#EAF4F4]`}
+          } text-gray-500 hover:text-gray-800 group`}
         >
-          {!collapsed && 'Logout'}
+          {!collapsed && (
+            <span className="group-hover:translate-x-1 transition-transform duration-200">
+              Logout
+            </span>
+          )}
         </Button>
-        <div className="text-[rgba(152,180,193,0.6)] text-xs mt-2">
-          {collapsed ? '©' : '© 2024 CV Builder'}
+        <div className="text-gray-400 text-xs text-center mt-2">
+          {collapsed ? '©' : '© 2024 CV Builder Pro'}
         </div>
       </div>
     </Sider>

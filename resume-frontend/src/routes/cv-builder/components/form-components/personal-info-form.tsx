@@ -92,7 +92,6 @@ export const PersonalInfoForm: React.FC<PersonalInfoFormProps> = ({
             </Form.Item>
           </Col>
 
-          {/* Job Title */}
           <Col xs={24} md={12}>
             <Form.Item
               name="jobTitle"
@@ -117,7 +116,6 @@ export const PersonalInfoForm: React.FC<PersonalInfoFormProps> = ({
             </Form.Item>
           </Col>
 
-          {/* Email */}
           <Col xs={24} md={12}>
             <Form.Item
               name="email"
@@ -146,7 +144,6 @@ export const PersonalInfoForm: React.FC<PersonalInfoFormProps> = ({
             </Form.Item>
           </Col>
 
-          {/* Phone */}
           <Col xs={24} md={12}>
             <Form.Item
               name="phone"
@@ -178,7 +175,6 @@ export const PersonalInfoForm: React.FC<PersonalInfoFormProps> = ({
             </Form.Item>
           </Col>
 
-          {/* Location */}
           <Col xs={24} md={12}>
             <Form.Item
               name="location"
@@ -203,7 +199,6 @@ export const PersonalInfoForm: React.FC<PersonalInfoFormProps> = ({
             </Form.Item>
           </Col>
 
-          {/* Website */}
           <Col xs={24} md={12}>
             <Form.Item
               name="website"
@@ -228,7 +223,6 @@ export const PersonalInfoForm: React.FC<PersonalInfoFormProps> = ({
             </Form.Item>
           </Col>
 
-          {/* LinkedIn */}
           <Col xs={24} md={12}>
             <Form.Item
               name="linkedin"
@@ -253,7 +247,6 @@ export const PersonalInfoForm: React.FC<PersonalInfoFormProps> = ({
             </Form.Item>
           </Col>
 
-          {/* GitHub */}
           <Col xs={24} md={12}>
             <Form.Item
               name="github"
@@ -278,7 +271,6 @@ export const PersonalInfoForm: React.FC<PersonalInfoFormProps> = ({
             </Form.Item>
           </Col>
 
-          {/* Summary */}
           <Col xs={24}>
             <Form.Item
               name="summary"
