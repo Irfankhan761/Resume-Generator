@@ -12,6 +12,7 @@ import {
 } from '@ant-design/icons';
 import { CVSection } from '../../../types/types';
 import { useNavigate } from 'react-router-dom';
+import { signOut } from 'core/services/auth-services';
 
 const { Sider } = Layout;
 const { confirm } = Modal;
@@ -59,8 +60,14 @@ export const Sidebar = ({
       cancelText: 'Cancel',
       centered: true,
       maskClosable: true,
-      onOk() {
-        navigate('/');
+      async onOk() {
+        try {
+          const { error } = await signOut();
+          if (error) throw error;
+          navigate('/');
+        } catch (error) {
+          console.error('Logout error:', error);
+        }
       },
       onCancel() {
         console.log('Logout cancelled');

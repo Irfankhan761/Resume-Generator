@@ -7,7 +7,7 @@ import {
   Divider,
   Breadcrumb,
   message,
-} from "antd";
+} from 'antd';
 import {
   UserOutlined,
   LockOutlined,
@@ -15,22 +15,35 @@ import {
   GoogleOutlined,
   TwitterOutlined,
   FacebookFilled,
-} from "@ant-design/icons";
-import { useState } from "react";
+} from '@ant-design/icons';
+import { useState } from 'react';
+import { signUp } from 'core/services/auth-services';
+import { useNavigate } from 'react-router-dom';
 
 const SignupPage = () => {
   const [loading, setLoading] = useState(false);
   const [form] = Form.useForm();
+  const navigate = useNavigate();
 
   const onFinish = async (values: any) => {
     setLoading(true);
     try {
-      // Simulate API call
-      await new Promise((resolve) => setTimeout(resolve, 1500));
-      console.log("Signup successful:", values);
-      message.success("Account created successfully!");
-    } catch (error) {
-      message.error("Signup failed. Please try again.");
+      const { user, error } = await signUp(
+        values.email,
+        values.password,
+        values.username
+      );
+
+      if (error) {
+        throw error;
+      }
+
+      if (user) {
+        message.success('Account created successfully!');
+        navigate('/create-cv');
+      }
+    } catch (error: any) {
+      message.error(error.message || 'Signup failed. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -75,8 +88,8 @@ const SignupPage = () => {
                 <span className="text-gray-700 font-medium">Username</span>
               }
               rules={[
-                { required: true, message: "Please input your username!" },
-                { min: 3, message: "Username must be at least 3 characters!" },
+                { required: true, message: 'Please input your username!' },
+                { min: 3, message: 'Username must be at least 3 characters!' },
               ]}
             >
               <Input
@@ -91,10 +104,10 @@ const SignupPage = () => {
               name="email"
               label={<span className="text-gray-700 font-medium">Email</span>}
               rules={[
-                { required: true, message: "Please input your email!" },
+                { required: true, message: 'Please input your email!' },
                 {
-                  type: "email",
-                  message: "Please enter a valid email address!",
+                  type: 'email',
+                  message: 'Please enter a valid email address!',
                 },
               ]}
             >
@@ -112,8 +125,8 @@ const SignupPage = () => {
                 <span className="text-gray-700 font-medium">Password</span>
               }
               rules={[
-                { required: true, message: "Please input your password!" },
-                { min: 6, message: "Password must be at least 6 characters!" },
+                { required: true, message: 'Please input your password!' },
+                { min: 6, message: 'Password must be at least 6 characters!' },
               ]}
             >
               <Input.Password
@@ -126,17 +139,17 @@ const SignupPage = () => {
 
             <Form.Item
               name="confirmPassword"
-              dependencies={["password"]}
+              dependencies={['password']}
               label={
                 <span className="text-gray-700 font-medium">
                   Confirm Password
                 </span>
               }
               rules={[
-                { required: true, message: "Please confirm your password!" },
+                { required: true, message: 'Please confirm your password!' },
                 ({ getFieldValue }) => ({
                   validator(_, value) {
-                    if (!value || getFieldValue("password") === value) {
+                    if (!value || getFieldValue('password') === value) {
                       return Promise.resolve();
                     }
                     return Promise.reject("Passwords don't match!");
@@ -162,13 +175,13 @@ const SignupPage = () => {
                     value
                       ? Promise.resolve()
                       : Promise.reject(
-                          "You must accept the terms and conditions"
+                          'You must accept the terms and conditions'
                         ),
                 },
               ]}
             >
               <Checkbox className="text-gray-600 hover:text-blue-600">
-                I agree to the{" "}
+                I agree to the{' '}
                 <a href="#terms" className="text-blue-600 hover:text-blue-800">
                   Terms and Conditions
                 </a>
@@ -217,7 +230,7 @@ const SignupPage = () => {
           </div>
 
           <div className="mt-6 text-center text-sm text-gray-500">
-            Already have an account?{" "}
+            Already have an account?{' '}
             <a
               href="/login"
               className="text-blue-600 hover:text-blue-800 font-medium transition-colors"
