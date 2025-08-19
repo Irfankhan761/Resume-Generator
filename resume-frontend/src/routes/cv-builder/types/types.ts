@@ -61,8 +61,8 @@ export interface CVData {
 }
 
 export type CVSection =
-  | "Personal Info"
-  | "Education"
-  | "Work Experience"
-  | "Projects"
-  | "Skills";
+  | 'Personal Info'
+  | 'Education'
+  | 'Work Experience'
+  | 'Projects'
+  | 'Skills';

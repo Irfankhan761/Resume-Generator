@@ -1,5 +1,5 @@
-import React from 'react';
-import { Card, Form, Input, Row, Col } from 'antd';
+import React, { useState, useEffect, useCallback } from 'react';
+import { Card, Form, Input, Row, Col, Button, message, Spin } from 'antd';
 import {
   UserOutlined,
   MailOutlined,
@@ -8,40 +8,182 @@ import {
   GlobalOutlined,
   CompassOutlined,
   GithubOutlined,
+  SaveOutlined,
 } from '@ant-design/icons';
 import type { PersonalInfo } from '../../types/types';
+import { personalInfoService } from 'core/services/personal-info-sevice';
 
 interface PersonalInfoFormProps {
   data: PersonalInfo;
   onChange: (data: PersonalInfo) => void;
+  onSave?: () => void;
 }
 
 export const PersonalInfoForm: React.FC<PersonalInfoFormProps> = ({
   data,
   onChange,
+  onSave,
 }) => {
   const [form] = Form.useForm();
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [hasLoaded, setHasLoaded] = useState(false);
 
-  const handleValuesChange = (_: any, allValues: PersonalInfo) => {
-    onChange(allValues);
+  const handleValuesChange = useCallback(
+    (_: any, allValues: PersonalInfo) => {
+      if (hasLoaded) {
+        onChange(allValues);
+      }
+    },
+    [onChange, hasLoaded]
+  );
+
+  const handleSave = async () => {
+    try {
+      setSaving(true);
+      await form.validateFields();
+      const formData = form.getFieldsValue();
+
+      const { error, data: savedData } =
+        await personalInfoService.savePersonalInfo(formData);
+
+      if (error) {
+        console.error('Error saving personal info:', error);
+        message.error('Failed to save personal information');
+        return;
+      }
+
+      message.success('Personal information saved successfully!');
+
+      // Update the parent component with the saved data
+      // This ensures the preview gets the latest data
+      if (savedData) {
+        // Convert database format back to component format
+        const formattedData: PersonalInfo = {
+          fullName: savedData.full_name,
+          jobTitle: savedData.job_title,
+          email: savedData.email,
+          phone: savedData.phone,
+          location: savedData.location || '',
+          website: savedData.website || '',
+          linkedin: savedData.linkedin || '',
+          github: savedData.github || '',
+          summary: savedData.summary,
+        };
+        onChange(formattedData);
+      } else {
+        // Fallback: use form data if savedData is not available
+        onChange(formData);
+      }
+
+      // Call the onSave callback if provided
+      if (onSave) {
+        onSave();
+      }
+    } catch (error) {
+      console.error('Validation or save error:', error);
+      message.error('Please fix the form errors before saving');
+    } finally {
+      setSaving(false);
+    }
   };
+
+  // Load data on component mount
+  useEffect(() => {
+    const loadPersonalInfo = async () => {
+      try {
+        const { data: savedData, error } =
+          await personalInfoService.loadPersonalInfo();
+
+        if (error) {
+          console.error('Error loading personal info:', error);
+          if (error.code !== 'PGRST116') {
+            message.error('Failed to load saved data');
+          }
+        } else if (savedData) {
+          // Update form with saved data
+          form.setFieldsValue(savedData);
+          // Update parent component with saved data
+          onChange(savedData);
+        } else {
+          // If no saved data, set form with current prop data
+          form.setFieldsValue(data);
+        }
+      } catch (err) {
+        console.error('Unexpected error:', err);
+      } finally {
+        setLoading(false);
+        setHasLoaded(true);
+      }
+    };
+
+    loadPersonalInfo();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Only run on mount - we intentionally ignore dependencies here
+
+  // Update form when data prop changes from parent (but only after initial load)
+  useEffect(() => {
+    if (hasLoaded && data) {
+      const currentValues = form.getFieldsValue();
+      // Only update if the data is significantly different to avoid unnecessary re-renders
+      const hasChanges = Object.keys(data).some(
+        (key) => currentValues[key] !== data[key as keyof PersonalInfo]
+      );
+
+      if (hasChanges) {
+        form.setFieldsValue(data);
+      }
+    }
+  }, [data, form, hasLoaded]);
+
+  if (loading) {
+    return (
+      <div
+        style={{ display: 'flex', justifyContent: 'center', padding: '40px' }}
+      >
+        <Spin size="large" />
+      </div>
+    );
+  }
 
   return (
     <Card
       title={
-        <span
+        <div
           style={{
-            fontSize: '20px',
-            fontWeight: '600',
-            color: '#2c3e50',
             display: 'flex',
+            justifyContent: 'space-between',
             alignItems: 'center',
-            gap: '8px',
           }}
         >
-          <UserOutlined style={{ color: '#3498db' }} />
-          Personal Information
-        </span>
+          <span
+            style={{
+              fontSize: '20px',
+              fontWeight: '600',
+              color: '#2c3e50',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+            }}
+          >
+            <UserOutlined style={{ color: '#3498db' }} />
+            Personal Information
+          </span>
+          <Button
+            type="primary"
+            icon={<SaveOutlined />}
+            loading={saving}
+            onClick={handleSave}
+            style={{
+              background: '#1890ff',
+              borderColor: '#1890ff',
+              borderRadius: '6px',
+              fontWeight: '500',
+            }}
+          >
+            Save
+          </Button>
+        </div>
       }
       className="mb-8"
       headStyle={{ borderBottom: '1px solid #e8e8e8', padding: '0 24px' }}
@@ -92,6 +234,7 @@ export const PersonalInfoForm: React.FC<PersonalInfoFormProps> = ({
             </Form.Item>
           </Col>
 
+          {/* Job Title */}
           <Col xs={24} md={12}>
             <Form.Item
               name="jobTitle"
@@ -116,6 +259,7 @@ export const PersonalInfoForm: React.FC<PersonalInfoFormProps> = ({
             </Form.Item>
           </Col>
 
+          {/* Email */}
           <Col xs={24} md={12}>
             <Form.Item
               name="email"
@@ -144,6 +288,7 @@ export const PersonalInfoForm: React.FC<PersonalInfoFormProps> = ({
             </Form.Item>
           </Col>
 
+          {/* Phone */}
           <Col xs={24} md={12}>
             <Form.Item
               name="phone"
@@ -175,6 +320,7 @@ export const PersonalInfoForm: React.FC<PersonalInfoFormProps> = ({
             </Form.Item>
           </Col>
 
+          {/* Location */}
           <Col xs={24} md={12}>
             <Form.Item
               name="location"
@@ -199,6 +345,7 @@ export const PersonalInfoForm: React.FC<PersonalInfoFormProps> = ({
             </Form.Item>
           </Col>
 
+          {/* Website */}
           <Col xs={24} md={12}>
             <Form.Item
               name="website"
@@ -223,6 +370,7 @@ export const PersonalInfoForm: React.FC<PersonalInfoFormProps> = ({
             </Form.Item>
           </Col>
 
+          {/* LinkedIn */}
           <Col xs={24} md={12}>
             <Form.Item
               name="linkedin"
@@ -247,6 +395,7 @@ export const PersonalInfoForm: React.FC<PersonalInfoFormProps> = ({
             </Form.Item>
           </Col>
 
+          {/* GitHub */}
           <Col xs={24} md={12}>
             <Form.Item
               name="github"
@@ -271,6 +420,7 @@ export const PersonalInfoForm: React.FC<PersonalInfoFormProps> = ({
             </Form.Item>
           </Col>
 
+          {/* Summary */}
           <Col xs={24}>
             <Form.Item
               name="summary"
