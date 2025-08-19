@@ -7,29 +7,38 @@ import {
   Divider,
   Breadcrumb,
   message,
-} from "antd";
+} from 'antd';
 import {
   UserOutlined,
   LockOutlined,
   GoogleOutlined,
   TwitterOutlined,
   FacebookFilled,
-} from "@ant-design/icons";
-import { useState } from "react";
+} from '@ant-design/icons';
+import { useState } from 'react';
+import { signIn } from 'core/services/auth-services';
+import { useNavigate } from 'react-router-dom';
 
 const LoginPage = () => {
   const [loading, setLoading] = useState(false);
   const [form] = Form.useForm();
+  const navigate = useNavigate();
 
   const onFinish = async (values: any) => {
     setLoading(true);
     try {
-      // Simulate API call
-      await new Promise((resolve) => setTimeout(resolve, 1500));
-      console.log("Login successful:", values);
-      message.success("Login successful!");
-    } catch (error) {
-      message.error("Login failed. Please try again.");
+      const { user, error } = await signIn(values.username, values.password);
+
+      if (error) {
+        throw error;
+      }
+
+      if (user) {
+        message.success('Login successful!');
+        navigate('/create-cv');
+      }
+    } catch (error: any) {
+      message.error(error.message || 'Login failed. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -78,13 +87,13 @@ const LoginPage = () => {
               rules={[
                 {
                   required: true,
-                  message: "Please input your username or email!",
+                  message: 'Please input your username or email!',
                 },
                 {
-                  type: "email",
-                  message: "Please enter a valid email!",
+                  type: 'email',
+                  message: 'Please enter a valid email!',
                   validator: (_, value) =>
-                    !value || value.includes("@")
+                    !value || value.includes('@')
                       ? Promise.resolve()
                       : Promise.reject(),
                 },
@@ -104,8 +113,8 @@ const LoginPage = () => {
                 <span className="text-gray-700 font-medium">Password</span>
               }
               rules={[
-                { required: true, message: "Please input your password!" },
-                { min: 6, message: "Password must be at least 6 characters!" },
+                { required: true, message: 'Please input your password!' },
+                { min: 6, message: 'Password must be at least 6 characters!' },
               ]}
             >
               <Input.Password
@@ -128,7 +137,7 @@ const LoginPage = () => {
               </Form.Item>
 
               <a
-                href="#ForgotPassword"
+                href="/forgot-password"
                 className="text-blue-600 hover:text-blue-800 text-sm font-medium transition-colors"
               >
                 Forgot password?
@@ -177,7 +186,7 @@ const LoginPage = () => {
           </div>
 
           <div className="mt-6 text-center text-sm text-gray-500">
-            Don't have an account?{" "}
+            Don't have an account?{' '}
             <a
               href="/signup"
               className="text-blue-600 hover:text-blue-800 font-medium transition-colors"
