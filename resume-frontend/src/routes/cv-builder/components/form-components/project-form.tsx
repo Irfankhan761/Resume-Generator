@@ -11,41 +11,34 @@ import {
   Col,
   Spin,
   message,
+  Modal,
 } from 'antd';
 import {
   PlusOutlined,
   DeleteOutlined,
+  EditOutlined, // Replaced SaveOutlined
   CodeOutlined,
-  SaveOutlined,
 } from '@ant-design/icons';
-import { Project } from '../../types/types';
+import type { Project } from '../../types/types';
 import { BriefcaseBusinessIcon } from 'lucide-react';
-import { projectService } from 'core/services/project-services'; // Adjust path if needed
+import { projectService } from 'core/services/project-services';
 import dayjs from 'dayjs';
 
 const { Title, Text } = Typography;
+const { confirm } = Modal;
 
-interface ProjectFormProps {
-  data: Project[];
-  onChange: (data: Project[]) => void;
-  onSave?: () => void;
-}
-
-// Re-defining styles for clarity and encapsulation
 const inputStyle: React.CSSProperties = {
   borderRadius: '8px',
   height: '40px',
   border: '1px solid #d0d7e0',
   fontSize: '14px',
 };
-
 const textareaStyle: React.CSSProperties = {
   borderRadius: '8px',
   border: '1px solid #d0d7e0',
   fontSize: '14px',
   resize: 'vertical',
 };
-
 const buttonStyle: React.CSSProperties = {
   borderRadius: '8px',
   height: '40px',
@@ -56,97 +49,131 @@ const buttonStyle: React.CSSProperties = {
   justifyContent: 'center',
 };
 
-const deleteButtonStyle: React.CSSProperties = {
-  ...buttonStyle,
-  minWidth: '40px',
-  width: '40px',
-  padding: '0',
-};
+interface ProjectFormProps {
+  data: Project[];
+  onChange: (data: Project[]) => void;
+}
 
-export const ProjectForm: React.FC<ProjectFormProps> = ({
-  data,
-  onChange,
-  onSave,
-}) => {
-  const [form] = Form.useForm();
+export const ProjectForm: React.FC<ProjectFormProps> = ({ onChange }) => {
+  const [listForm] = Form.useForm();
+  const [modalForm] = Form.useForm();
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isModalVisible, setIsModalVisible] = useState(false);
+  const [editingIndex, setEditingIndex] = useState<number | null>(null);
 
-  // Load data on component mount
+  const loadData = async () => {
+    setLoading(true);
+    const { data: savedData, error } = await projectService.loadProjects();
+    if (error && error.code !== 'PGRST116') {
+      message.error('Failed to load project details.');
+    }
+    const projectList = savedData || [];
+    onChange(projectList);
+    listForm.setFieldsValue({ projects: projectList });
+    setLoading(false);
+  };
+
   useEffect(() => {
-    const loadData = async () => {
-      setLoading(true);
-      const { data: savedData, error } = await projectService.loadProjects();
-
-      if (error) {
-        console.error('Error loading projects:', error);
-        if (error.code !== 'PGRST116') {
-          // Ignore "no rows found" error
-          message.error('Failed to load project details.');
-        }
-      } else if (savedData && savedData.length > 0) {
-        const formattedForForm = savedData.map((proj) => ({
-          ...proj,
-          startDate: proj.startDate ? dayjs(proj.startDate) : null,
-          endDate: proj.endDate ? dayjs(proj.endDate) : null,
-        }));
-        form.setFieldsValue({ projects: formattedForForm });
-        onChange(savedData);
-      } else {
-        form.setFieldsValue({ projects: data });
-      }
-      setLoading(false);
-    };
-
     loadData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const handleSave = async () => {
+  const showAddModal = () => {
+    setEditingIndex(null);
+    modalForm.resetFields();
+    modalForm.setFieldsValue({ technologies: [''] });
+    setIsModalVisible(true);
+  };
+
+  const showEditModal = (index: number) => {
+    setEditingIndex(index);
+    const recordToEdit = (listForm.getFieldValue('projects') || [])[index];
+    modalForm.setFieldsValue({
+      ...recordToEdit,
+      startDate: recordToEdit.startDate ? dayjs(recordToEdit.startDate) : null,
+      endDate: recordToEdit.endDate ? dayjs(recordToEdit.endDate) : null,
+    });
+    setIsModalVisible(true);
+  };
+
+  const handleCancel = () => {
+    setIsModalVisible(false);
+    setEditingIndex(null);
+  };
+
+  const handleModalSave = async (continueAdding = false) => {
     try {
-      setSaving(true);
-      await form.validateFields();
-      const values = form.getFieldsValue();
-      const projectData = values.projects || [];
+      const modalValues = await modalForm.validateFields();
+      setIsSaving(true);
+      const projectList = listForm.getFieldValue('projects') || [];
+      const currentId =
+        editingIndex !== null
+          ? projectList[editingIndex].id
+          : `temp-${Date.now()}`;
 
-      // Convert date objects back to strings for the database
-      const formattedForDb = projectData.map((proj: any) => ({
-        ...proj,
-        startDate: proj.startDate
-          ? dayjs(proj.startDate).format('YYYY-MM-DD')
-          : null,
-        endDate: proj.endDate ? dayjs(proj.endDate).format('YYYY-MM-DD') : null,
-      }));
+      const itemToSave: Project = {
+        ...modalValues,
+        id: currentId,
+        startDate: modalValues.startDate
+          ? dayjs(modalValues.startDate).format('YYYY-MM-DD')
+          : undefined,
+        endDate: modalValues.endDate
+          ? dayjs(modalValues.endDate).format('YYYY-MM-DD')
+          : undefined,
+        technologies: modalValues.technologies?.filter(Boolean) || [],
+      };
 
-      const { error, data: savedData } = await projectService.saveProjects(
-        formattedForDb
+      const { error } = await projectService.saveProject(itemToSave);
+      if (error) throw error;
+
+      message.success(
+        `Project ${editingIndex !== null ? 'updated' : 'saved'} successfully!`
       );
+      await loadData();
 
-      if (error) {
-        throw error;
+      if (continueAdding) {
+        setEditingIndex(null);
+        modalForm.resetFields();
+        modalForm.setFieldsValue({ technologies: [''] });
+      } else {
+        setIsModalVisible(false);
+        setEditingIndex(null);
       }
-
-      message.success('Project details saved successfully!');
-
-      if (savedData) {
-        onChange(savedData);
-      }
-
-      if (onSave) {
-        onSave();
-      }
-    } catch (errorInfo) {
-      console.error('Validation or save error:', errorInfo);
-      message.error('Please fix the form errors before saving.');
+    } catch (error) {
+      message.error('An error occurred while saving.');
     } finally {
-      setSaving(false);
+      setIsSaving(false);
     }
   };
 
-  const handleValuesChange = (_: any, allValues: { projects: Project[] }) => {
-    if (onChange) {
-      onChange(allValues.projects);
-    }
+  const handleDelete = (indexToDelete: number) => {
+    const itemToDelete = (listForm.getFieldValue('projects') || [])[
+      indexToDelete
+    ];
+    if (!itemToDelete || itemToDelete.id.startsWith('temp-')) return;
+
+    confirm({
+      title: 'Are you sure you want to delete this project?',
+      content: `This will permanently remove "${itemToDelete.title}".`,
+      okText: 'Delete',
+      okType: 'danger',
+      onOk: async () => {
+        try {
+          setIsSaving(true);
+          const { error } = await projectService.deleteProject(itemToDelete.id);
+          if (error) throw error;
+          message.success('Project deleted successfully!');
+          await loadData();
+        } catch (err) {
+          message.error('An error occurred while deleting.');
+        } finally {
+          setIsSaving(false);
+          setIsModalVisible(false);
+          setEditingIndex(null);
+        }
+      },
+    });
   };
 
   if (loading) {
@@ -160,287 +187,260 @@ export const ProjectForm: React.FC<ProjectFormProps> = ({
   }
 
   return (
-    <Card
-      className="mb-8"
-      style={{
-        background: '#ffffff',
-        borderRadius: '12px',
-        boxShadow: '0 4px 20px rgba(0, 0, 0, 0.08)',
-        border: 'none',
-        overflow: 'hidden',
-      }}
-      title={
-        <div
-          style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-          }}
-        >
+    <>
+      <Card
+        className="mb-8"
+        style={{
+          background: '#ffffff',
+          borderRadius: '12px',
+          boxShadow: '0 4px 20px rgba(0, 0, 0, 0.08)',
+          border: 'none',
+        }}
+        title={
           <Title
             level={4}
             style={{ color: '#1a3353', margin: 0, fontWeight: 600 }}
           >
-            <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <svg
-                width="20"
-                height="20"
-                viewBox="0 0 24 24"
-                fill="none"
-                xmlns="http://www.w3.org/2000/svg"
-              >
-                <path
-                  d="M3 3H21C21.2652 3 21.5196 3.10536 21.7071 3.29289C21.8946 3.48043 22 3.73478 22 4V20C22 20.2652 21.8946 20.5196 21.7071 20.7071C21.5196 20.8946 21.2652 21 21 21H3C2.73478 21 2.48043 20.8946 2.29289 20.7071C2.10536 20.5196 2 20.2652 2 20V4C2 3.73478 2.10536 3.48043 2.29289 3.29289C2.48043 3.10536 2.73478 3 3 3ZM12 15V17H18V15H12ZM8.414 12L5.586 14.828L7 16.243L11.243 12L7 7.757L5.586 9.172L8.414 12Z"
-                  fill="#1a3353"
-                />
-              </svg>
-              Projects
-            </span>
+            Projects
           </Title>
-          <Button
-            type="primary"
-            icon={<SaveOutlined />}
-            loading={saving}
-            onClick={handleSave}
-            style={{
-              borderRadius: '6px',
-              background: '#1a73e8',
-              borderColor: '#1a73e8',
-            }}
-          >
-            Save Projects
+        }
+        extra={
+          <Button onClick={showAddModal} type="primary" icon={<PlusOutlined />}>
+            Add Project
           </Button>
-        </div>
-      }
-    >
-      <Form
-        layout="vertical"
-        form={form}
-        onValuesChange={handleValuesChange}
-        initialValues={{ projects: data }}
-        style={{ width: '100%' }}
+        }
       >
-        <Form.List name="projects">
-          {(fields, { add, remove }) => (
-            <div
-              style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}
-            >
-              {fields.map(({ key, name, ...restField }) => (
-                <div
-                  key={key}
-                  style={{
-                    background: '#f9fbfd',
-                    borderRadius: '10px',
-                    padding: '20px',
-                    border: '1px solid #e6f0ff',
-                    position: 'relative',
-                  }}
-                >
-                  <Button
-                    type="text"
-                    danger
-                    onClick={() => remove(name)}
-                    icon={<DeleteOutlined />}
-                    style={{
-                      position: 'absolute',
-                      top: '16px',
-                      right: '16px',
-                      color: '#ff4d4f',
-                      zIndex: 1,
-                      ...deleteButtonStyle,
-                    }}
-                  />
-
-                  <Form.Item
-                    {...restField}
-                    name={[name, 'title']}
-                    label={
-                      <Text strong style={{ color: '#1a3353' }}>
-                        Project Title
-                      </Text>
-                    }
-                    rules={[
-                      { required: true, message: 'Project title is required' },
-                    ]}
-                  >
-                    <Input
-                      placeholder="e.g., E-commerce Platform"
-                      style={inputStyle}
-                    />
-                  </Form.Item>
-
-                  <Form.Item
-                    {...restField}
-                    name={[name, 'link']}
-                    label={
-                      <Text strong style={{ color: '#1a3353' }}>
-                        Project Link
-                      </Text>
-                    }
-                  >
-                    <Input
-                      placeholder="https://github.com/user/project"
-                      style={inputStyle}
-                    />
-                  </Form.Item>
-
-                  <Row gutter={16}>
-                    <Col xs={24} sm={12}>
-                      <Form.Item
-                        {...restField}
-                        name={[name, 'startDate']}
-                        label={
-                          <Text strong style={{ color: '#1a3353' }}>
-                            Start Date
-                          </Text>
-                        }
-                        rules={[
-                          { required: true, message: 'Start date is required' },
-                        ]}
-                      >
-                        <DatePicker
-                          picker="month"
-                          style={{ ...inputStyle, width: '100%' }}
-                        />
-                      </Form.Item>
-                    </Col>
-                    <Col xs={24} sm={12}>
-                      <Form.Item
-                        {...restField}
-                        name={[name, 'endDate']}
-                        label={
-                          <Text strong style={{ color: '#1a3353' }}>
-                            End Date (Optional)
-                          </Text>
-                        }
-                      >
-                        <DatePicker
-                          picker="month"
-                          style={{ ...inputStyle, width: '100%' }}
-                        />
-                      </Form.Item>
-                    </Col>
-                  </Row>
-
-                  <Divider
-                    orientation="left"
-                    plain
-                    style={{ color: '#4a6ea9' }}
-                  >
-                    <span
-                      style={{ display: 'flex', alignItems: 'center', gap: 8 }}
-                    >
-                      <BriefcaseBusinessIcon size={16} /> Project Description
-                    </span>
-                  </Divider>
-
-                  <Form.Item
-                    {...restField}
-                    name={[name, 'description']}
-                    rules={[
-                      { required: true, message: 'Description is required' },
-                    ]}
-                  >
-                    <Input.TextArea
-                      rows={4}
-                      placeholder="Describe your project, your role, and key achievements"
-                      style={textareaStyle}
-                    />
-                  </Form.Item>
-
-                  <Divider
-                    orientation="left"
-                    plain
-                    style={{ color: '#4a6ea9' }}
-                  >
-                    <span
-                      style={{ display: 'flex', alignItems: 'center', gap: 8 }}
-                    >
-                      <CodeOutlined /> Technologies Used
-                    </span>
-                  </Divider>
-
-                  <Form.List name={[name, 'technologies']}>
-                    {(techFields, { add: addTech, remove: removeTech }) => (
-                      <div
-                        style={{
-                          display: 'flex',
-                          flexDirection: 'column',
-                          gap: '12px',
-                        }}
-                      >
-                        {techFields.map(
-                          ({
-                            key: techKey,
-                            name: techName,
-                            ...restTechField
-                          }) => (
-                            <Row key={techKey} gutter={8} align="middle">
-                              <Col flex="auto">
-                                <Form.Item
-                                  {...restTechField}
-                                  name={techName}
-                                  style={{ marginBottom: 0 }}
-                                >
-                                  <Input
-                                    placeholder="e.g., React, Node.js, PostgreSQL"
-                                    style={inputStyle}
-                                  />
-                                </Form.Item>
-                              </Col>
-                              <Col>
-                                <Button
-                                  type="text"
-                                  danger
-                                  icon={<DeleteOutlined />}
-                                  onClick={() => removeTech(techName)}
-                                />
-                              </Col>
-                            </Row>
-                          )
-                        )}
-                        <Button
-                          type="dashed"
-                          onClick={() => addTech('')}
-                          icon={<PlusOutlined />}
-                          style={{ ...buttonStyle, width: '100%' }}
-                        >
-                          Add Technology
-                        </Button>
-                      </div>
-                    )}
-                  </Form.List>
-                </div>
-              ))}
-
-              <Button
-                type="dashed"
-                onClick={() =>
-                  add({
-                    id: `temp-${Date.now()}`,
-                    title: '',
-                    description: '',
-                    technologies: [''],
-                    startDate: null,
-                    endDate: null,
-                    link: '',
-                  })
-                }
-                icon={<PlusOutlined />}
+        <Form form={listForm} layout="vertical" autoComplete="off">
+          <Form.List name="projects">
+            {(fields) => (
+              <div
                 style={{
-                  ...buttonStyle,
-                  borderColor: '#13c2c2',
-                  color: '#13c2c2',
-                  fontSize: '15px',
-                  width: '100%',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '24px',
                 }}
               >
-                Add Another Project
-              </Button>
-            </div>
-          )}
-        </Form.List>
-      </Form>
-    </Card>
+                {fields.length === 0 ? (
+                  <Text type="secondary">
+                    No projects added. Click "Add Project" to start.
+                  </Text>
+                ) : (
+                  fields.map(({ key, name }, index) => (
+                    <div
+                      key={key}
+                      style={{
+                        background: '#f9fbfd',
+                        borderRadius: '10px',
+                        padding: '24px',
+                        border: '1px solid #e6f0ff',
+                        position: 'relative',
+                      }}
+                    >
+                      <div
+                        style={{
+                          position: 'absolute',
+                          top: '16px',
+                          right: '16px',
+                          zIndex: 1,
+                          display: 'flex',
+                          gap: '8px',
+                        }}
+                      >
+                        <Button
+                          type="text"
+                          onClick={() => showEditModal(index)}
+                          icon={<EditOutlined />}
+                        />
+                        <Button
+                          type="text"
+                          danger
+                          onClick={() => handleDelete(index)}
+                          icon={<DeleteOutlined />}
+                        />
+                      </div>
+                      <Row gutter={24}>
+                        <Col xs={24} md={12}>
+                          <Form.Item label={<Text strong>Project Title</Text>}>
+                            <Text>
+                              {listForm.getFieldValue([
+                                'projects',
+                                name,
+                                'title',
+                              ])}
+                            </Text>
+                          </Form.Item>
+                        </Col>
+                        <Col xs={24} md={12}>
+                          <Form.Item label={<Text strong>Project Link</Text>}>
+                            <Text>
+                              {listForm.getFieldValue([
+                                'projects',
+                                name,
+                                'link',
+                              ]) || 'N/A'}
+                            </Text>
+                          </Form.Item>
+                        </Col>
+                      </Row>
+                    </div>
+                  ))
+                )}
+              </div>
+            )}
+          </Form.List>
+        </Form>
+      </Card>
+
+      <Modal
+        title={
+          <Title level={5} style={{ margin: 0 }}>
+            {editingIndex !== null ? 'Edit Project' : 'Add New Project'}
+          </Title>
+        }
+        open={isModalVisible}
+        onCancel={handleCancel}
+        destroyOnClose
+        width={700}
+        footer={[
+          <Button key="cancel" onClick={handleCancel}>
+            Cancel
+          </Button>,
+          editingIndex !== null && (
+            <Button
+              key="delete"
+              type="primary"
+              danger
+              onClick={() => handleDelete(editingIndex)}
+            >
+              Delete
+            </Button>
+          ),
+          <Button
+            key="save"
+            type="primary"
+            loading={isSaving}
+            onClick={() => handleModalSave(false)}
+          >
+            Save
+          </Button>,
+          editingIndex === null && (
+            <Button
+              key="save_continue"
+              type="primary"
+              loading={isSaving}
+              onClick={() => handleModalSave(true)}
+            >
+              Save and Continue
+            </Button>
+          ),
+        ]}
+      >
+        <Form form={modalForm} layout="vertical" name="project_modal">
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item
+                name="title"
+                label="Project Title"
+                rules={[{ required: true }]}
+              >
+                <Input
+                  placeholder="e.g., E-commerce Platform"
+                  style={inputStyle}
+                />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item name="link" label="Project Link">
+                <Input
+                  placeholder="https://github.com/user/project"
+                  style={inputStyle}
+                />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item
+                name="startDate"
+                label="Start Date"
+                rules={[{ required: true }]}
+              >
+                <DatePicker
+                  picker="month"
+                  style={{ ...inputStyle, width: '100%' }}
+                />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item name="endDate" label="End Date (Optional)">
+                <DatePicker
+                  picker="month"
+                  style={{ ...inputStyle, width: '100%' }}
+                />
+              </Form.Item>
+            </Col>
+          </Row>
+
+          <Divider orientation="left" plain>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <BriefcaseBusinessIcon size={16} /> Project Description
+            </span>
+          </Divider>
+
+          <Form.Item name="description" rules={[{ required: true }]}>
+            <Input.TextArea
+              rows={4}
+              placeholder="Describe your project, your role, and key achievements"
+              style={textareaStyle}
+            />
+          </Form.Item>
+
+          <Divider orientation="left" plain>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <CodeOutlined /> Technologies Used
+            </span>
+          </Divider>
+
+          <Form.List name="technologies">
+            {(techFields, { add: addTech, remove: removeTech }) => (
+              <div
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '12px',
+                }}
+              >
+                {techFields.map(({ key, name, ...restField }) => (
+                  <Row key={key} gutter={8} align="middle">
+                    <Col flex="auto">
+                      <Form.Item {...restField} name={name} noStyle>
+                        <Input
+                          placeholder="e.g., React, Node.js, PostgreSQL"
+                          style={inputStyle}
+                        />
+                      </Form.Item>
+                    </Col>
+                    <Col>
+                      <Button
+                        type="text"
+                        danger
+                        icon={<DeleteOutlined />}
+                        onClick={() => removeTech(name)}
+                      />
+                    </Col>
+                  </Row>
+                ))}
+                <Button
+                  type="dashed"
+                  onClick={() => addTech('')}
+                  icon={<PlusOutlined />}
+                  style={{ ...buttonStyle, width: '100%' }}
+                >
+                  Add Technology
+                </Button>
+              </div>
+            )}
+          </Form.List>
+        </Form>
+      </Modal>
+    </>
   );
 };

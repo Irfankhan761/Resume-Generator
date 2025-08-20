@@ -1,3 +1,4 @@
+import React, { useState, useEffect } from 'react';
 import {
   Card,
   Button,
@@ -9,514 +10,441 @@ import {
   Typography,
   Row,
   Col,
+  Spin,
+  message,
+  Modal,
 } from 'antd';
-import { PlusOutlined, DeleteOutlined, CodeOutlined } from '@ant-design/icons';
+import { PlusOutlined, DeleteOutlined, EditOutlined } from '@ant-design/icons';
 import { WorkExperience } from '../../types/types';
 import { BriefcaseBusinessIcon } from 'lucide-react';
+import dayjs from 'dayjs';
+import { workExperienceService } from 'core/services/work-experience';
 
 const { Title, Text } = Typography;
+const { confirm } = Modal;
 
 interface WorkExperienceFormProps {
   data: WorkExperience[];
   onChange: (data: WorkExperience[]) => void;
 }
 
-const inputStyle: React.CSSProperties = {
-  borderRadius: '8px',
-  height: '40px',
-  border: '1px solid #d0d7e0',
-  fontSize: '14px',
-};
-
-const textareaStyle: React.CSSProperties = {
-  borderRadius: '8px',
-  border: '1px solid #d0d7e0',
-  fontSize: '14px',
-  resize: 'vertical' as const,
-};
-
-const buttonStyle: React.CSSProperties = {
-  borderRadius: '8px',
-  height: '40px',
-  fontWeight: 500,
-  fontSize: '14px',
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-};
-
-const deleteButtonStyle: React.CSSProperties = {
-  ...buttonStyle,
-  minWidth: '40px',
-  width: '40px',
-  padding: '0',
-};
-
-export const WorkExperienceForm = ({
-  data,
+export const WorkExperienceForm: React.FC<WorkExperienceFormProps> = ({
   onChange,
-}: WorkExperienceFormProps) => {
+}) => {
   const [form] = Form.useForm();
+  const [modalForm] = Form.useForm();
+  const [loading, setLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isModalVisible, setIsModalVisible] = useState(false);
+  const [editingIndex, setEditingIndex] = useState<number | null>(null);
 
-  const onFinish = (values: { workExperience: WorkExperience[] }) => {
-    onChange(values.workExperience);
+  const loadData = async () => {
+    setLoading(true);
+    const { data: savedData, error } =
+      await workExperienceService.loadWorkExperience();
+    if (error && error.code !== 'PGRST116') {
+      // PGRST116: No rows found
+      message.error('Failed to load work experience.');
+    }
+    const experienceList = savedData || [];
+    onChange(experienceList);
+    form.setFieldsValue({ workExperience: experienceList });
+    setLoading(false);
   };
 
-  const onValuesChange = (
-    _changedValues: any,
-    allValues: { workExperience: WorkExperience[] }
-  ) => {
-    onChange(allValues.workExperience);
+  useEffect(() => {
+    loadData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const showAddModal = () => {
+    setEditingIndex(null);
+    modalForm.resetFields();
+    modalForm.setFieldsValue({
+      currentlyWorking: false,
+      description: [''],
+      technologies: [''],
+    });
+    setIsModalVisible(true);
   };
+
+  const showEditModal = (index: number) => {
+    setEditingIndex(index);
+    const recordToEdit = (form.getFieldValue('workExperience') || [])[index];
+    modalForm.setFieldsValue({
+      ...recordToEdit,
+      startDate: recordToEdit.startDate ? dayjs(recordToEdit.startDate) : null,
+      endDate: recordToEdit.endDate ? dayjs(recordToEdit.endDate) : null,
+    });
+    setIsModalVisible(true);
+  };
+
+  const handleCancel = () => {
+    setIsModalVisible(false);
+    setEditingIndex(null);
+  };
+
+  const handleModalSave = async (continueAdding = false) => {
+    try {
+      const modalValues = await modalForm.validateFields();
+      setIsSaving(true);
+      const experienceList = form.getFieldValue('workExperience') || [];
+      const currentId =
+        editingIndex !== null
+          ? experienceList[editingIndex].id
+          : `temp-${Date.now()}`;
+
+      const itemToSave: WorkExperience = {
+        ...modalValues,
+        id: currentId,
+        startDate: modalValues.startDate?.format('YYYY-MM-DD') || null,
+        endDate:
+          !modalValues.currentlyWorking && modalValues.endDate
+            ? modalValues.endDate.format('YYYY-MM-DD')
+            : null,
+        currentlyWorking: modalValues.currentlyWorking || false,
+        description: (modalValues.description || []).filter(
+          (d: string) => d && d.trim() !== ''
+        ),
+        technologies: (modalValues.technologies || []).filter(
+          (t: string) => t && t.trim() !== ''
+        ),
+      };
+
+      const { error } = await workExperienceService.saveWorkExperience(
+        itemToSave
+      );
+      if (error) throw error;
+
+      message.success(
+        `Work experience ${
+          editingIndex !== null ? 'updated' : 'added'
+        } successfully!`
+      );
+      await loadData();
+
+      if (continueAdding) {
+        setEditingIndex(null);
+        modalForm.resetFields();
+        modalForm.setFieldsValue({
+          currentlyWorking: false,
+          description: [''],
+          technologies: [''],
+        });
+      } else {
+        setIsModalVisible(false);
+        setEditingIndex(null);
+      }
+    } catch (error) {
+      message.error('An error occurred while saving.');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleDelete = (indexToDelete: number) => {
+    const itemToDelete = (form.getFieldValue('workExperience') || [])[
+      indexToDelete
+    ];
+    if (!itemToDelete || itemToDelete.id.startsWith('temp-')) return;
+
+    confirm({
+      title: 'Are you sure you want to delete this experience?',
+      okText: 'Delete',
+      okType: 'danger',
+      onOk: async () => {
+        try {
+          setIsSaving(true);
+          const { error } = await workExperienceService.deleteWorkExperience(
+            itemToDelete.id
+          );
+          if (error) throw error;
+          message.success('Work experience deleted successfully!');
+          await loadData();
+        } catch (err) {
+          message.error('An error occurred while deleting.');
+        } finally {
+          setIsSaving(false);
+          setIsModalVisible(false);
+          setEditingIndex(null);
+        }
+      },
+    });
+  };
+
+  if (loading) {
+    return (
+      <div
+        style={{ display: 'flex', justifyContent: 'center', padding: '40px' }}
+      >
+        <Spin size="large" />
+      </div>
+    );
+  }
 
   return (
-    <Card
-      className="mb-8"
-      style={{
-        background: '#ffffff',
-        borderRadius: '12px',
-        boxShadow: '0 4px 20px rgba(0, 0, 0, 0.08)',
-        border: 'none',
-        overflow: 'hidden',
-      }}
-      title={
-        <Title
-          level={4}
-          style={{ color: '#1a3353', margin: 0, fontWeight: 600 }}
-        >
-          <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <svg
-              width="20"
-              height="20"
-              viewBox="0 0 24 24"
-              fill="none"
-              xmlns="http://www.w3.org/2000/svg"
-            >
-              <path
-                d="M20 6H4V8H20V6ZM12 10H4V12H12V10ZM16 14H4V16H16V14Z"
-                fill="#1a3353"
-              />
-            </svg>
-            Work Experience
-          </span>
-        </Title>
-      }
-    >
-      <Form
-        layout="vertical"
-        form={form}
-        onFinish={onFinish}
-        onValuesChange={onValuesChange}
-        initialValues={{ workExperience: data }}
-        style={{ width: '100%' }}
+    <>
+      <Card
+        className="mb-8"
+        title={
+          <Title level={4} style={{ margin: 0 }}>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <BriefcaseBusinessIcon size={20} />
+              Work Experience
+            </span>
+          </Title>
+        }
+        extra={
+          <Button onClick={showAddModal} type="primary" icon={<PlusOutlined />}>
+            Add Experience
+          </Button>
+        }
       >
-        <Form.List name="workExperience">
-          {(fields, { add, remove }) => (
-            <div
-              style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}
-            >
-              {fields.map(({ key, name, ...restField }) => (
-                <div
-                  key={key}
-                  style={{
-                    background: '#f9fbfd',
-                    borderRadius: '10px',
-                    padding: '20px',
-                    border: '1px solid #e6f0ff',
-                    position: 'relative',
-                    overflow: 'hidden',
-                    width: '100%',
-                    boxSizing: 'border-box',
-                  }}
-                >
-                  <Button
-                    type="text"
-                    danger
-                    onClick={() => remove(name)}
-                    icon={<DeleteOutlined />}
-                    style={{
-                      position: 'absolute',
-                      top: '16px',
-                      right: '16px',
-                      color: '#ff4d4f',
-                      zIndex: 1,
-                      ...deleteButtonStyle,
-                    }}
-                  />
-
-                  <Row gutter={[16, 16]} style={{ marginBottom: '16px' }}>
-                    <Col xs={24} sm={12}>
-                      <Form.Item
-                        {...restField}
-                        name={[name, 'company']}
-                        label={
-                          <Text
-                            strong
-                            style={{ color: '#1a3353', fontSize: '14px' }}
-                          >
-                            Company
-                          </Text>
-                        }
-                        rules={[
-                          { required: true, message: 'Company is required' },
-                        ]}
-                        style={{ marginBottom: 0 }}
-                      >
-                        <Input placeholder="Company name" style={inputStyle} />
-                      </Form.Item>
-                    </Col>
-                    <Col xs={24} sm={12}>
-                      <Form.Item
-                        {...restField}
-                        name={[name, 'position']}
-                        label={
-                          <Text
-                            strong
-                            style={{ color: '#1a3353', fontSize: '14px' }}
-                          >
-                            Position
-                          </Text>
-                        }
-                        rules={[
-                          { required: true, message: 'Position is required' },
-                        ]}
-                        style={{ marginBottom: 0 }}
-                      >
-                        <Input placeholder="Job title" style={inputStyle} />
-                      </Form.Item>
-                    </Col>
-                  </Row>
-
-                  <Row gutter={[16, 16]} style={{ marginBottom: '16px' }}>
-                    <Col xs={24} sm={16}>
-                      <Form.Item
-                        {...restField}
-                        name={[name, 'location']}
-                        label={
-                          <Text
-                            strong
-                            style={{ color: '#1a3353', fontSize: '14px' }}
-                          >
-                            Location
-                          </Text>
-                        }
-                        rules={[
-                          { required: true, message: 'Location is required' },
-                        ]}
-                        style={{ marginBottom: 0 }}
-                      >
-                        <Input placeholder="City, Country" style={inputStyle} />
-                      </Form.Item>
-                    </Col>
-                    <Col xs={24} sm={8}>
-                      <Form.Item
-                        name={[name, 'currentlyWorking']}
-                        valuePropName="checked"
-                        label={
-                          <Text
-                            strong
-                            style={{ color: '#1a3353', fontSize: '14px' }}
-                          >
-                            Currently Working
-                          </Text>
-                        }
-                        style={{ marginBottom: 0 }}
-                      >
-                        <Switch
-                          checkedChildren="Yes"
-                          unCheckedChildren="No"
-                          style={{
-                            width: 80,
-                            fontSize: 14,
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                          }}
-                          onChange={(checked) => {
-                            form.setFieldsValue({
-                              workExperience: form
-                                .getFieldValue('workExperience')
-                                .map((exp: WorkExperience, index: number) =>
-                                  index === name
-                                    ? {
-                                        ...exp,
-                                        currentlyWorking: checked,
-                                        endDate: checked ? null : exp.endDate,
-                                      }
-                                    : exp
-                                ),
-                            });
-                            onChange(form.getFieldValue('workExperience'));
-                          }}
-                        />
-                      </Form.Item>
-                    </Col>
-                  </Row>
-
-                  <Row gutter={[16, 16]} style={{ marginBottom: '20px' }}>
-                    <Col xs={24} sm={12}>
-                      <Form.Item
-                        {...restField}
-                        name={[name, 'startDate']}
-                        label={
-                          <Text
-                            strong
-                            style={{ color: '#1a3353', fontSize: '14px' }}
-                          >
-                            Start Date
-                          </Text>
-                        }
-                        rules={[
-                          { required: true, message: 'Start date is required' },
-                        ]}
-                        style={{ marginBottom: 0 }}
-                      >
-                        <DatePicker style={{ ...inputStyle, width: '100%' }} />
-                      </Form.Item>
-                    </Col>
-                    <Col xs={24} sm={12}>
-                      <Form.Item
-                        {...restField}
-                        name={[name, 'endDate']}
-                        label={
-                          <Text
-                            strong
-                            style={{ color: '#1a3353', fontSize: '14px' }}
-                          >
-                            End Date
-                          </Text>
-                        }
-                        rules={[
-                          {
-                            required: !form.getFieldValue([
-                              'workExperience',
-                              name,
-                              'currentlyWorking',
-                            ]),
-                            message: 'End date is required',
-                          },
-                        ]}
-                        style={{ marginBottom: 0 }}
-                      >
-                        <DatePicker
-                          style={{ ...inputStyle, width: '100%' }}
-                          disabled={form.getFieldValue([
+        <Form form={form} layout="vertical">
+          <Form.List name="workExperience">
+            {(fields) =>
+              fields.length === 0 ? (
+                <Text type="secondary">
+                  No work experience added. Click "Add Experience" to start.
+                </Text>
+              ) : (
+                fields.map(({ key, name }, index) => (
+                  <Card key={key} style={{ marginBottom: 16 }}>
+                    <div
+                      style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                      }}
+                    >
+                      <div>
+                        <Text strong>
+                          {form.getFieldValue([
                             'workExperience',
                             name,
-                            'currentlyWorking',
+                            'position',
                           ])}
-                          placeholder="Select end date"
+                        </Text>
+                        <br />
+                        <Text>
+                          {form.getFieldValue([
+                            'workExperience',
+                            name,
+                            'company',
+                          ])}
+                        </Text>
+                      </div>
+                      <div>
+                        <Button
+                          type="text"
+                          onClick={() => showEditModal(index)}
+                          icon={<EditOutlined />}
+                        />
+                        <Button
+                          type="text"
+                          danger
+                          onClick={() => handleDelete(index)}
+                          icon={<DeleteOutlined />}
+                        />
+                      </div>
+                    </div>
+                  </Card>
+                ))
+              )
+            }
+          </Form.List>
+        </Form>
+      </Card>
+
+      <Modal
+        title={
+          <Title level={5} style={{ margin: 0 }}>
+            {editingIndex !== null ? 'Edit Work History' : 'Add Work History'}
+          </Title>
+        }
+        open={isModalVisible}
+        onCancel={handleCancel}
+        destroyOnClose
+        width={700}
+        footer={[
+          <Button key="cancel" onClick={handleCancel}>
+            Cancel
+          </Button>,
+          editingIndex !== null && (
+            <Button
+              key="delete"
+              type="primary"
+              danger
+              loading={isSaving}
+              onClick={() => handleDelete(editingIndex)}
+            >
+              Delete
+            </Button>
+          ),
+          <Button
+            key="save"
+            type="primary"
+            loading={isSaving}
+            onClick={() => handleModalSave(false)}
+          >
+            Save
+          </Button>,
+          editingIndex === null && (
+            <Button
+              key="save_continue"
+              type="primary"
+              loading={isSaving}
+              onClick={() => handleModalSave(true)}
+            >
+              Save and Continue
+            </Button>
+          ),
+        ]}
+      >
+        <Form
+          form={modalForm}
+          layout="vertical"
+          name="work_experience_modal"
+          initialValues={{ currentlyWorking: false }}
+        >
+          <Row gutter={16}>
+            <Col xs={24} md={12}>
+              <Form.Item
+                name="position"
+                label="Job Title"
+                rules={[{ required: true, message: 'Job Title is required' }]}
+              >
+                <Input placeholder="e.g. Software Engineer" />
+              </Form.Item>
+            </Col>
+            <Col xs={24} md={12}>
+              <Form.Item
+                name="company"
+                label="Company"
+                rules={[{ required: true, message: 'Company is required' }]}
+              >
+                <Input placeholder="e.g. Google" />
+              </Form.Item>
+            </Col>
+            <Col xs={24} md={12}>
+              <Form.Item name="location" label="Location">
+                <Input placeholder="e.g. London, UK" />
+              </Form.Item>
+            </Col>
+            <Col xs={24} md={12}>
+              <Form.Item
+                name="startDate"
+                label="Start Date"
+                rules={[{ required: true, message: 'Start date is required' }]}
+              >
+                <DatePicker picker="month" style={{ width: '100%' }} />
+              </Form.Item>
+            </Col>
+            <Col xs={24} md={12}>
+              <Form.Item
+                shouldUpdate={(prev, curr) =>
+                  prev.currentlyWorking !== curr.currentlyWorking
+                }
+                noStyle
+              >
+                {({ getFieldValue }) => (
+                  <Form.Item
+                    name="endDate"
+                    label="End Date"
+                    rules={[
+                      {
+                        required: !getFieldValue('currentlyWorking'),
+                        message: 'End date is required.',
+                      },
+                    ]}
+                  >
+                    <DatePicker
+                      picker="month"
+                      style={{ width: '100%' }}
+                      disabled={getFieldValue('currentlyWorking')}
+                      placeholder={
+                        getFieldValue('currentlyWorking') ? 'Present' : ''
+                      }
+                    />
+                  </Form.Item>
+                )}
+              </Form.Item>
+            </Col>
+            <Col xs={24} md={12}>
+              <Form.Item
+                name="currentlyWorking"
+                label=" "
+                valuePropName="checked"
+              >
+                <Switch
+                  onChange={() => modalForm.validateFields(['endDate'])}
+                  checkedChildren="I currently work here"
+                  unCheckedChildren="I no longer work here"
+                />
+              </Form.Item>
+            </Col>
+          </Row>
+
+          <Divider orientation="left" plain>
+            <BriefcaseBusinessIcon size={16} /> Description
+          </Divider>
+          <Form.List name="description">
+            {(fields, { add, remove }) => (
+              <div
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '12px',
+                }}
+              >
+                {fields.map(({ key, name, ...restField }) => (
+                  <Row key={key} align="middle" gutter={8}>
+                    <Col flex="auto">
+                      <Form.Item
+                        {...restField}
+                        name={name}
+                        style={{ marginBottom: 0 }}
+                      >
+                        <Input.TextArea
+                          autoSize
+                          placeholder="Responsibility or achievement"
                         />
                       </Form.Item>
                     </Col>
-                  </Row>
-
-                  <Divider
-                    orientation="left"
-                    plain
-                    style={{
-                      borderColor: '#e0e7f0',
-                      color: '#4a6ea9',
-                      margin: '16px 0',
-                    }}
-                  >
-                    <span
-                      style={{ display: 'flex', alignItems: 'center', gap: 8 }}
-                    >
-                      <BriefcaseBusinessIcon
-                        size={16}
-                        style={{ color: '#52c41a' }}
+                    <Col>
+                      <Button
+                        type="text"
+                        danger
+                        icon={<DeleteOutlined />}
+                        onClick={() => remove(name)}
                       />
-                      Job Description
-                    </span>
-                  </Divider>
+                    </Col>
+                  </Row>
+                ))}
+                <Button
+                  type="dashed"
+                  onClick={() => add('')}
+                  icon={<PlusOutlined />}
+                >
+                  Add Point
+                </Button>
+              </div>
+            )}
+          </Form.List>
 
-                  <Form.List name={[name, 'description']}>
-                    {(descriptionFields, { add: addDescription, remove }) => (
-                      <div style={{ marginBottom: '20px' }}>
-                        {descriptionFields.map(
-                          ({
-                            key,
-                            name: descName,
-                            ...restDescriptionField
-                          }) => (
-                            <Row
-                              key={key}
-                              gutter={[8, 8]}
-                              style={{ marginBottom: '12px' }}
-                            >
-                              <Col flex="1">
-                                <Form.Item
-                                  {...restDescriptionField}
-                                  name={[descName]}
-                                  style={{ marginBottom: 0 }}
-                                >
-                                  <Input.TextArea
-                                    rows={3}
-                                    placeholder="Describe your responsibilities and achievements"
-                                    style={textareaStyle}
-                                  />
-                                </Form.Item>
-                              </Col>
-                              <Col>
-                                <Button
-                                  type="text"
-                                  danger
-                                  icon={<DeleteOutlined />}
-                                  onClick={() => remove(descName)}
-                                  style={{
-                                    ...deleteButtonStyle,
-                                    color: '#ff4d4f',
-                                    height: '92px',
-                                  }}
-                                />
-                              </Col>
-                            </Row>
-                          )
-                        )}
-                        <Button
-                          type="dashed"
-                          onClick={() => addDescription('')}
-                          icon={<PlusOutlined />}
-                          style={{
-                            ...buttonStyle,
-                            borderColor: '#4096ff',
-                            color: '#4096ff',
-                            width: '100%',
-                          }}
-                        >
-                          Add Description Point
-                        </Button>
-                      </div>
-                    )}
-                  </Form.List>
-
-                  <Divider
-                    orientation="left"
-                    plain
-                    style={{
-                      borderColor: '#e0e7f0',
-                      color: '#4a6ea9',
-                      margin: '16px 0',
-                    }}
-                  >
-                    <span
-                      style={{ display: 'flex', alignItems: 'center', gap: 8 }}
-                    >
-                      <CodeOutlined style={{ color: '#722ed1' }} />
-                      Technologies Used
-                    </span>
-                  </Divider>
-
-                  <Form.List name={[name, 'technologies']}>
-                    {(technologyFields, { add: addTechnology, remove }) => (
-                      <div>
-                        {technologyFields.map(
-                          ({ key, name: techName, ...restTechnologyField }) => (
-                            <Row
-                              key={key}
-                              gutter={[8, 8]}
-                              style={{ marginBottom: '12px' }}
-                            >
-                              <Col flex="1">
-                                <Form.Item
-                                  {...restTechnologyField}
-                                  name={[techName]}
-                                  style={{ marginBottom: 0 }}
-                                >
-                                  <Input
-                                    placeholder="Technology or tool used"
-                                    style={inputStyle}
-                                  />
-                                </Form.Item>
-                              </Col>
-                              <Col>
-                                <Button
-                                  type="text"
-                                  danger
-                                  icon={<DeleteOutlined />}
-                                  onClick={() => remove(techName)}
-                                  style={{
-                                    ...deleteButtonStyle,
-                                    color: '#ff4d4f',
-                                  }}
-                                />
-                              </Col>
-                            </Row>
-                          )
-                        )}
-                        <Button
-                          type="dashed"
-                          onClick={() => addTechnology('')}
-                          icon={<PlusOutlined />}
-                          style={{
-                            ...buttonStyle,
-                            borderColor: '#4096ff',
-                            color: '#4096ff',
-                            width: '100%',
-                          }}
-                        >
-                          Add Technology
-                        </Button>
-                      </div>
-                    )}
-                  </Form.List>
-                </div>
-              ))}
-
-              <Button
-                type="dashed"
-                onClick={() =>
-                  add({
-                    id: Date.now().toString(),
-                    company: '',
-                    position: '',
-                    location: '',
-                    startDate: null,
-                    endDate: null,
-                    currentlyWorking: false,
-                    description: [],
-                    technologies: [],
-                  })
-                }
-                icon={<PlusOutlined />}
+          <Form.List name="technologies">
+            {(fields, { add, remove }) => (
+              <div
                 style={{
-                  ...buttonStyle,
-                  borderColor: '#13c2c2',
-                  color: '#13c2c2',
-                  fontSize: '15px',
-                  width: '100%',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '12px',
                 }}
-              >
-                Add Work Experience
-              </Button>
-            </div>
-          )}
-        </Form.List>
-
-        <div
-          style={{
-            marginTop: '24px',
-            display: 'flex',
-            justifyContent: 'center',
-          }}
-        >
-          <Button
-            type="primary"
-            htmlType="submit"
-            style={{
-              ...buttonStyle,
-              background: '#1a73e8',
-              borderColor: '#1a73e8',
-              padding: '0 32px',
-              fontSize: '15px',
-              boxShadow: '0 2px 8px rgba(26, 115, 232, 0.3)',
-            }}
-          >
-            Save Work Experience
-          </Button>
-        </div>
-      </Form>
-    </Card>
+              ></div>
+            )}
+          </Form.List>
+        </Form>
+      </Modal>
+    </>
   );
 };

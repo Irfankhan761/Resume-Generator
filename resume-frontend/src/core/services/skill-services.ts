@@ -1,7 +1,6 @@
 import { supabase } from '../lib/supabaseClient';
 import type { Skill } from '@routes/cv-builder/types/types';
 
-// The frontend and backend formats are identical in this case, but helpers are good practice.
 const toFrontendFormat = (item: any): Skill => ({
   id: item.id,
   category: item.category,
@@ -9,14 +8,14 @@ const toFrontendFormat = (item: any): Skill => ({
 });
 
 const toBackendFormat = (item: Skill, userId: string) => ({
+  // Let the DB generate a new UUID for temporary IDs
   id: item.id.startsWith('temp-') ? undefined : item.id,
   user_id: userId,
   category: item.category,
-  skills: item.skills, // The 'skills' array is stored directly as JSONB
+  skills: item.skills,
 });
 
 export const skillService = {
-  // Load all skill categories for the current user
   async loadSkills(): Promise<{ error: any; data: Skill[] | null }> {
     try {
       const {
@@ -29,23 +28,20 @@ export const skillService = {
       const { data, error } = await supabase
         .from('skills')
         .select('*')
-        .eq('user_id', user.id);
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: true });
 
       if (error) {
         return { error, data: null };
       }
 
-      const formattedData = data.map(toFrontendFormat);
-      return { error: null, data: formattedData };
+      return { error: null, data: data.map(toFrontendFormat) };
     } catch (error) {
       return { error, data: null };
     }
   },
 
-  // Save (upsert/delete) all skill categories
-  async saveSkills(
-    skillList: Skill[]
-  ): Promise<{ error: any; data: Skill[] | null }> {
+  async saveSkill(skill: Skill): Promise<{ error: any; data: Skill | null }> {
     try {
       const {
         data: { user },
@@ -54,43 +50,51 @@ export const skillService = {
         throw new Error('User not authenticated');
       }
 
-      // 1. Format the current list for the database
-      const upsertData = skillList.map((skill) =>
-        toBackendFormat(skill, user.id)
-      );
+      const upsertData = toBackendFormat(skill, user.id);
 
-      // 2. Upsert the data
-      const { data: savedData, error: upsertError } = await supabase
+      const { data, error } = await supabase
         .from('skills')
-        .upsert(upsertData, { defaultToNull: false }) // Prevents null ID error for new items
-        .select();
+        .upsert([upsertData], { defaultToNull: false })
+        .select()
+        .single();
 
-      if (upsertError) {
-        console.error('Error upserting skills:', upsertError);
-        return { error: upsertError, data: null };
+      if (error) {
+        console.error('Error upserting skill:', error);
+        return { error, data: null };
       }
 
-      // 3. Clean up deleted categories
-      const savedIds = savedData.map((item) => item.id);
-      const { data: existingEntries } = await supabase
+      return { error: null, data: toFrontendFormat(data) };
+    } catch (error) {
+      console.error('Unexpected error in saveSkill:', error);
+      return { error, data: null };
+    }
+  },
+
+  async deleteSkill(
+    skillId: string
+  ): Promise<{ error: any; data: any | null }> {
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) {
+        throw new Error('User not authenticated');
+      }
+
+      const { error, data } = await supabase
         .from('skills')
-        .select('id')
+        .delete()
+        .eq('id', skillId)
         .eq('user_id', user.id);
 
-      if (existingEntries) {
-        const idsToDelete = existingEntries
-          .map((e) => e.id)
-          .filter((id) => !savedIds.includes(id));
-
-        if (idsToDelete.length > 0) {
-          await supabase.from('skills').delete().in('id', idsToDelete);
-        }
+      if (error) {
+        console.error('Error deleting skill:', error);
+        return { error, data: null };
       }
 
-      const formattedData = savedData.map(toFrontendFormat);
-      return { error: null, data: formattedData };
+      return { error: null, data };
     } catch (error) {
-      console.error('Unexpected error in saveSkills:', error);
+      console.error('Unexpected error in deleteSkill:', error);
       return { error, data: null };
     }
   },
