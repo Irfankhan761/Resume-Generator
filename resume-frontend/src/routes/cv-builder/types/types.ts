@@ -11,15 +11,18 @@ export interface PersonalInfo {
 }
 
 export interface Education {
-  current: any;
   id: string;
-  institution: string;
-  degree: string;
-  field: string;
-  startDate: string;
-  endDate: string;
-  gpa?: string;
-  achievements: string[];
+  degreeTitle: string;
+  institute?: string;
+  majors?: string;
+  city?: string;
+  gpaValue?: string;
+  gpaType?: 'gpa' | 'percentage';
+
+  // New/Updated Fields
+  startDate?: string;
+  endDate?: string;
+  isCurrent?: boolean;
 }
 
 export interface Project {
@@ -37,7 +40,7 @@ export interface Skill {
   category: string;
   skills: {
     name: string;
-    level: number; // Skill level represented as a percentage
+    level: number;
   }[];
 }
 
@@ -46,10 +49,10 @@ export interface WorkExperience {
   company: string;
   position: string;
   location: string;
-  startDate: string;
-  endDate: string;
+  startDate: string | null;
+  endDate: string | null;
+  currentlyWorking: boolean;
   description: string[];
-  technologies: string[];
 }
 
 export interface CVData {

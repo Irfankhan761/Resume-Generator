@@ -4,119 +4,107 @@ import type { Education } from '@routes/cv-builder/types/types';
 // Helper to convert database fields to frontend format
 const toFrontendFormat = (item: any): Education => ({
   id: item.id,
-  institution: item.institution,
-  degree: item.degree,
-  field: item.field_of_study,
+  degreeTitle: item.degree_title,
+  majors: item.majors,
+  institute: item.institute,
+  gpaValue: item.gpa_value,
+  gpaType: item.gpa_type,
+  city: item.city,
   startDate: item.start_date,
   endDate: item.end_date,
-  gpa: item.gpa || '',
-  achievements: item.achievements || [],
-  current: item.is_current || false,
+  isCurrent: item.is_current,
 });
 
 // Helper to convert frontend format to database fields
 const toBackendFormat = (item: Education, userId: string) => ({
-  id: item.id.startsWith('temp-') ? undefined : item.id, // Let Supabase generate ID for new items
+  id: item.id.startsWith('temp-') ? undefined : item.id,
   user_id: userId,
-  institution: item.institution,
-  degree: item.degree,
-  field_of_study: item.field,
-  gpa: item.gpa,
+  degree_title: item.degreeTitle,
+  majors: item.majors,
+  institute: item.institute,
+  gpa_value: item.gpaValue,
+  gpa_type: item.gpaType,
+  city: item.city,
   start_date: item.startDate,
-  end_date: item.endDate,
-  is_current: item.current,
-  achievements: item.achievements,
+  // Ensure endDate is null if they are currently studying
+  end_date: item.isCurrent ? null : item.endDate,
+  is_current: item.isCurrent,
 });
 
 export const educationService = {
-  // Load all education entries for the current user
   async loadEducation(): Promise<{ error: any; data: Education[] | null }> {
     try {
       const {
         data: { user },
       } = await supabase.auth.getUser();
-      if (!user) {
-        return { error: 'User not authenticated', data: null };
-      }
+      if (!user) return { error: 'User not authenticated', data: null };
 
+      // Sort by current first, then by end date, so most recent is at the top
       const { data, error } = await supabase
         .from('education')
         .select('*')
         .eq('user_id', user.id)
-        .order('start_date', { ascending: false });
+        .order('is_current', { ascending: false })
+        .order('end_date', { ascending: false, nullsFirst: false });
 
-      if (error) {
-        return { error, data: null };
-      }
-
-      const formattedData = data.map(toFrontendFormat);
-      return { error: null, data: formattedData };
+      if (error) return { error, data: null };
+      return { error: null, data: data.map(toFrontendFormat) };
     } catch (error) {
       return { error, data: null };
     }
   },
 
-  // Save (upsert/delete) all education entries
   async saveEducation(
-    educationList: Education[]
+    educationItem: Education
   ): Promise<{ error: any; data: any }> {
     try {
       const {
         data: { user },
       } = await supabase.auth.getUser();
-      if (!user) {
-        throw new Error('User not authenticated');
-      }
+      if (!user) throw new Error('User not authenticated');
 
-      // 1. Format new/updated items for upsert
-      const upsertData = educationList.map((edu) =>
-        toBackendFormat(edu, user.id)
-      );
+      const formattedItem = toBackendFormat(educationItem, user.id);
 
-      const { data: savedData, error: upsertError } = await supabase
+      const { data, error } = await supabase
         .from('education')
-        .upsert(upsertData, { defaultToNull: false }) // <--- FIX APPLIED HERE
-        .select();
+        .upsert([formattedItem], { onConflict: 'id', defaultToNull: false })
+        .select()
+        .single();
 
-      if (upsertError) {
-        console.error('Error upserting education:', upsertError);
-        return { error: upsertError, data: null };
+      if (error) {
+        console.error('Error upserting education:', error);
+        return { error, data: null };
       }
 
-      // 2. Delete entries that are no longer in the list
-      const savedIds = savedData.map((item) => item.id);
-      const { data: existingEntries, error: fetchError } = await supabase
-        .from('education')
-        .select('id')
-        .eq('user_id', user.id);
-
-      if (fetchError) {
-        console.warn(
-          'Could not fetch existing entries for cleanup.',
-          fetchError
-        );
-      } else {
-        const idsToDelete = existingEntries
-          .map((e) => e.id)
-          .filter((id) => !savedIds.includes(id));
-
-        if (idsToDelete.length > 0) {
-          const { error: deleteError } = await supabase
-            .from('education')
-            .delete()
-            .in('id', idsToDelete);
-
-          if (deleteError) {
-            console.warn('Error deleting old education entries:', deleteError);
-          }
-        }
-      }
-
-      const formattedData = savedData.map(toFrontendFormat);
-      return { error: null, data: formattedData };
+      return { error: null, data: toFrontendFormat(data) };
     } catch (error) {
       console.error('Unexpected error in saveEducation:', error);
       return { error, data: null };
+    }
+  },
+
+  async deleteEducation(id: string): Promise<{ error: any }> {
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) throw new Error('User not authenticated');
+
+      const { error } = await supabase
+        .from('education')
+        .delete()
+        .eq('id', id)
+        .eq('user_id', user.id);
+
+      if (error) {
+        console.error('Error deleting education:', error);
+        return { error };
+      }
+
+      return { error: null };
+    } catch (error) {
+      console.error('Unexpected error in deleteEducation:', error);
+      return { error };
     }
   },
 };

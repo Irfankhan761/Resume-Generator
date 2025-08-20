@@ -4,106 +4,155 @@ import {
   Button,
   Form,
   Input,
-  Select,
   Divider,
   Typography,
   Row,
   Col,
   Spin,
   message,
+  Modal,
+  Tag,
 } from 'antd';
-import { PlusOutlined, DeleteOutlined, SaveOutlined } from '@ant-design/icons';
+import { PlusOutlined, DeleteOutlined, EditOutlined } from '@ant-design/icons';
 import { Skill } from '../../types/types';
-import { skillService } from 'core/services/skill-services'; // Adjust path if needed
+import { skillService } from 'core/services/skill-services';
 
 const { Title, Text } = Typography;
+const { confirm } = Modal;
+
+const inputStyle: React.CSSProperties = {
+  borderRadius: '8px',
+  height: '40px',
+  border: '1px solid #d0d7e0',
+  fontSize: '14px',
+};
+const buttonStyle: React.CSSProperties = {
+  borderRadius: '8px',
+  height: '40px',
+  fontWeight: 500,
+  fontSize: '14px',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+};
 
 interface SkillFormProps {
   data: Skill[];
   onChange: (data: Skill[]) => void;
-  onSave?: () => void;
 }
 
-const inputStyle: React.CSSProperties = {
-  /* ... */
-};
-const buttonStyle: React.CSSProperties = {
-  /* ... */
-};
-const deleteButtonStyle: React.CSSProperties = {
-  /* ... */
-};
-
-export const SkillForm: React.FC<SkillFormProps> = ({
-  data,
-  onChange,
-  onSave,
-}) => {
-  const [form] = Form.useForm();
+export const SkillForm: React.FC<SkillFormProps> = ({ onChange }) => {
+  const [listForm] = Form.useForm();
+  const [modalForm] = Form.useForm();
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isModalVisible, setIsModalVisible] = useState(false);
+  const [editingIndex, setEditingIndex] = useState<number | null>(null);
 
-  // Load data on component mount
+  const loadData = async () => {
+    setLoading(true);
+    const { data: savedData, error } = await skillService.loadSkills();
+    if (error && error.code !== 'PGRST116') {
+      message.error('Failed to load skill details.');
+    }
+    const skillList = savedData || [];
+    onChange(skillList);
+    listForm.setFieldsValue({ skills: skillList });
+    setLoading(false);
+  };
+
   useEffect(() => {
-    const loadData = async () => {
-      setLoading(true);
-      const { data: savedData, error } = await skillService.loadSkills();
-
-      if (error) {
-        console.error('Error loading skills:', error);
-        if (error.code !== 'PGRST116') {
-          // Ignore "no rows found" error
-          message.error('Failed to load skill details.');
-        }
-      } else if (savedData && savedData.length > 0) {
-        form.setFieldsValue({ skills: savedData });
-        onChange(savedData);
-      } else {
-        form.setFieldsValue({ skills: data });
-      }
-      setLoading(false);
-    };
-
     loadData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const handleSave = async () => {
+  const showAddModal = () => {
+    setEditingIndex(null);
+    modalForm.resetFields();
+    modalForm.setFieldsValue({ skills: [{ name: '', level: 50 }] });
+    setIsModalVisible(true);
+  };
+
+  const showEditModal = (index: number) => {
+    setEditingIndex(index);
+    const recordToEdit = (listForm.getFieldValue('skills') || [])[index];
+    modalForm.setFieldsValue(recordToEdit);
+    setIsModalVisible(true);
+  };
+
+  const handleCancel = () => {
+    setIsModalVisible(false);
+    setEditingIndex(null);
+  };
+
+  const handleModalSave = async (continueAdding = false) => {
     try {
-      setSaving(true);
-      await form.validateFields();
-      const values = form.getFieldsValue();
-      const skillData = values.skills || [];
+      const modalValues = await modalForm.validateFields();
+      setIsSaving(true);
+      const skillList = listForm.getFieldValue('skills') || [];
+      const currentId =
+        editingIndex !== null
+          ? skillList[editingIndex].id
+          : `temp-${Date.now()}`;
 
-      const { error, data: savedData } = await skillService.saveSkills(
-        skillData
+      const itemToSave: Skill = {
+        ...modalValues,
+        id: currentId,
+        skills:
+          modalValues.skills?.filter((skill: { name: string }) => skill.name) ||
+          [],
+      };
+
+      const { error } = await skillService.saveSkill(itemToSave);
+      if (error) throw error;
+
+      message.success(
+        `Skills ${editingIndex !== null ? 'updated' : 'saved'} successfully!`
       );
+      await loadData();
 
-      if (error) {
-        throw error;
+      if (continueAdding) {
+        setEditingIndex(null);
+        modalForm.resetFields();
+        modalForm.setFieldsValue({ skills: [{ name: '', level: 50 }] });
+      } else {
+        setIsModalVisible(false);
+        setEditingIndex(null);
       }
-
-      message.success('Skill details saved successfully!');
-
-      if (savedData) {
-        onChange(savedData);
-      }
-
-      if (onSave) {
-        onSave();
-      }
-    } catch (errorInfo) {
-      console.error('Validation or save error:', errorInfo);
-      message.error('Please fix the form errors before saving.');
+    } catch (error) {
+      message.error('Please complete all required fields.');
     } finally {
-      setSaving(false);
+      setIsSaving(false);
     }
   };
 
-  const handleValuesChange = (_: any, allValues: { skills: Skill[] }) => {
-    if (onChange) {
-      onChange(allValues.skills);
-    }
+  const handleDelete = (indexToDelete: number) => {
+    const itemToDelete = (listForm.getFieldValue('skills') || [])[
+      indexToDelete
+    ];
+    if (!itemToDelete || itemToDelete.id.startsWith('temp-')) return;
+
+    confirm({
+      title: 'Are you sure you want to delete this skill category?',
+      content: `This will permanently remove "${itemToDelete.category}".`,
+      okText: 'Delete',
+      okType: 'danger',
+      onOk: async () => {
+        try {
+          setIsSaving(true);
+          const { error } = await skillService.deleteSkill(itemToDelete.id);
+          if (error) throw error;
+          message.success('Skill category deleted successfully!');
+          await loadData();
+        } catch (err) {
+          message.error('An error occurred while deleting.');
+        } finally {
+          setIsSaving(false);
+          setIsModalVisible(false);
+          setEditingIndex(null);
+        }
+      },
+    });
   };
 
   if (loading) {
@@ -117,243 +166,217 @@ export const SkillForm: React.FC<SkillFormProps> = ({
   }
 
   return (
-    <Card
-      className="mb-8"
-      style={{
-        background: '#ffffff',
-        borderRadius: '12px',
-        boxShadow: '0 4px 20px rgba(0, 0, 0, 0.08)',
-        border: 'none',
-      }}
-      title={
-        <div
-          style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-          }}
-        >
+    <>
+      <Card
+        className="mb-8"
+        style={{
+          background: '#ffffff',
+          borderRadius: '12px',
+          boxShadow: '0 4px 20px rgba(0, 0, 0, 0.08)',
+          border: 'none',
+        }}
+        title={
           <Title
             level={4}
             style={{ color: '#1a3353', margin: 0, fontWeight: 600 }}
           >
-            <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <svg
-                width="20"
-                height="20"
-                viewBox="0 0 24 24"
-                fill="none"
-                xmlns="http://www.w3.org/2000/svg"
-              >
-                <path
-                  d="M12 2C6.48 2 2 6.48 2 12C2 17.52 6.48 22 12 22C17.52 22 22 17.52 22 12C22 6.48 17.52 2 12 2ZM12 20C7.58 20 4 16.42 4 12C4 7.58 7.58 4 12 4C16.42 4 20 7.58 20 12C20 16.42 16.42 20 12 20ZM14 10.5H10V8.5H14V10.5ZM14 15.5H10V13.5H14V15.5Z"
-                  fill="#1a3353"
-                />
-              </svg>
-              Skills
-            </span>
+            Skills
           </Title>
-          <Button
-            type="primary"
-            icon={<SaveOutlined />}
-            loading={saving}
-            onClick={handleSave}
-            style={{
-              borderRadius: '6px',
-              background: '#1a73e8',
-              borderColor: '#1a73e8',
-            }}
-          >
-            Save Skills
+        }
+        extra={
+          <Button onClick={showAddModal} type="primary" icon={<PlusOutlined />}>
+            Add Skills
           </Button>
-        </div>
-      }
-    >
-      <Form
-        layout="vertical"
-        form={form}
-        onValuesChange={handleValuesChange}
-        initialValues={{ skills: data }}
-        style={{ width: '100%' }}
+        }
       >
-        <Form.List name="skills">
-          {(fields, { add, remove }) => (
-            <div
-              style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}
-            >
-              {fields.map(({ key, name, ...restField }) => (
-                <div
-                  key={key}
-                  style={{
-                    background: '#f9fbfd',
-                    borderRadius: '10px',
-                    padding: '20px',
-                    border: '1px solid #e6f0ff',
-                    position: 'relative',
-                  }}
-                >
-                  <Button
-                    type="text"
-                    danger
-                    onClick={() => remove(name)}
-                    icon={<DeleteOutlined />}
-                    style={{
-                      position: 'absolute',
-                      top: '16px',
-                      right: '16px',
-                      color: '#ff4d4f',
-                      zIndex: 1,
-                      ...deleteButtonStyle,
-                    }}
-                  />
-
-                  <Form.Item
-                    {...restField}
-                    name={[name, 'category']}
-                    label={
-                      <Text strong style={{ color: '#1a3353' }}>
-                        Skill Category
-                      </Text>
-                    }
-                    rules={[
-                      { required: true, message: 'Category is required' },
-                    ]}
-                  >
-                    <Input
-                      placeholder="e.g., Frontend, Backend, Database"
-                      style={inputStyle}
-                    />
-                  </Form.Item>
-
-                  <Divider
-                    orientation="left"
-                    plain
-                    style={{ color: '#4a6ea9' }}
-                  >
-                    Skills in this Category
-                  </Divider>
-
-                  <Form.List name={[name, 'skills']}>
-                    {(skillFields, { add: addSkill, remove: removeSkill }) => (
-                      <div
-                        style={{
-                          display: 'flex',
-                          flexDirection: 'column',
-                          gap: '12px',
-                        }}
-                      >
-                        {skillFields.map(
-                          ({
-                            key: skillKey,
-                            name: skillName,
-                            ...restSkillField
-                          }) => (
-                            <Row key={skillKey} gutter={16} align="bottom">
-                              <Col xs={24} sm={14}>
-                                <Form.Item
-                                  {...restSkillField}
-                                  name={[skillName, 'name']}
-                                  label="Skill Name"
-                                  rules={[
-                                    {
-                                      required: true,
-                                      message: 'Skill name is required',
-                                    },
-                                  ]}
-                                  style={{ marginBottom: 0 }}
-                                >
-                                  <Input
-                                    placeholder="e.g., React, Node.js"
-                                    style={inputStyle}
-                                  />
-                                </Form.Item>
-                              </Col>
-                              <Col xs={24} sm={8}>
-                                <Form.Item
-                                  {...restSkillField}
-                                  name={[skillName, 'level']}
-                                  label="Proficiency"
-                                  rules={[
-                                    {
-                                      required: true,
-                                      message: 'Level is required',
-                                    },
-                                  ]}
-                                  style={{ marginBottom: 0 }}
-                                >
-                                  <Select
-                                    placeholder="Select level"
-                                    style={{ ...inputStyle, width: '100%' }}
-                                  >
-                                    <Select.Option value={25}>
-                                      Beginner
-                                    </Select.Option>
-                                    <Select.Option value={50}>
-                                      Intermediate
-                                    </Select.Option>
-                                    <Select.Option value={75}>
-                                      Advanced
-                                    </Select.Option>
-                                    <Select.Option value={100}>
-                                      Expert
-                                    </Select.Option>
-                                  </Select>
-                                </Form.Item>
-                              </Col>
-                              <Col xs={24} sm={2}>
-                                <Button
-                                  type="text"
-                                  danger
-                                  icon={<DeleteOutlined />}
-                                  onClick={() => removeSkill(skillName)}
-                                  style={{ marginBottom: 0 }}
-                                />
-                              </Col>
-                            </Row>
-                          )
-                        )}
-                        <Button
-                          type="dashed"
-                          onClick={() => addSkill({ name: '', level: 50 })}
-                          icon={<PlusOutlined />}
-                          style={{
-                            ...buttonStyle,
-                            width: '100%',
-                            marginTop: '8px',
-                          }}
-                        >
-                          Add Skill
-                        </Button>
-                      </div>
-                    )}
-                  </Form.List>
-                </div>
-              ))}
-
-              <Button
-                type="dashed"
-                onClick={() =>
-                  add({
-                    id: `temp-${Date.now()}`,
-                    category: '',
-                    skills: [{ name: '', level: 50 }],
-                  })
-                }
-                icon={<PlusOutlined />}
+        <Form form={listForm} layout="vertical" autoComplete="off">
+          <Form.List name="skills">
+            {(fields) => (
+              <div
                 style={{
-                  ...buttonStyle,
-                  borderColor: '#13c2c2',
-                  color: '#13c2c2',
-                  fontSize: '15px',
-                  width: '100%',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '24px',
                 }}
               >
-                Add Skill Category
-              </Button>
-            </div>
-          )}
-        </Form.List>
-      </Form>
-    </Card>
+                {fields.length === 0 ? (
+                  <Text type="secondary">
+                    No skills added. Click "Add Skills" to start.
+                  </Text>
+                ) : (
+                  fields.map(({ key, name }, index) => (
+                    <div
+                      key={key}
+                      style={{
+                        background: '#f9fbfd',
+                        borderRadius: '10px',
+                        padding: '24px',
+                        border: '1px solid #e6f0ff',
+                        position: 'relative',
+                      }}
+                    >
+                      <div
+                        style={{
+                          position: 'absolute',
+                          top: '16px',
+                          right: '16px',
+                          zIndex: 1,
+                          display: 'flex',
+                          gap: '8px',
+                        }}
+                      >
+                        <Button
+                          type="text"
+                          onClick={() => showEditModal(index)}
+                          icon={<EditOutlined />}
+                        />
+                        <Button
+                          type="text"
+                          danger
+                          onClick={() => handleDelete(index)}
+                          icon={<DeleteOutlined />}
+                        />
+                      </div>
+                      <Form.Item
+                        label={<Text strong>Category</Text>}
+                        style={{ marginBottom: '8px' }}
+                      >
+                        <Title level={5} style={{ margin: 0 }}>
+                          {listForm.getFieldValue(['skills', name, 'category'])}
+                        </Title>
+                      </Form.Item>
+                      <div>
+                        {listForm
+                          .getFieldValue(['skills', name, 'skills'])
+                          ?.map((skill: { name: string }, i: number) => (
+                            <Tag key={i} style={{ margin: '4px' }}>
+                              {skill.name}
+                            </Tag>
+                          ))}
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            )}
+          </Form.List>
+        </Form>
+      </Card>
+
+      <Modal
+        title={
+          <Title level={5} style={{ margin: 0 }}>
+            {editingIndex !== null ? 'Edit Skill Category' : 'Add New Category'}
+          </Title>
+        }
+        open={isModalVisible}
+        onCancel={handleCancel}
+        destroyOnClose
+        width={700}
+        footer={[
+          <Button key="cancel" onClick={handleCancel}>
+            Cancel
+          </Button>,
+          editingIndex !== null && (
+            <Button
+              key="delete"
+              type="primary"
+              danger
+              onClick={() => handleDelete(editingIndex)}
+            >
+              Delete
+            </Button>
+          ),
+          <Button
+            key="save"
+            type="primary"
+            loading={isSaving}
+            onClick={() => handleModalSave(false)}
+          >
+            Save
+          </Button>,
+          editingIndex === null && (
+            <Button
+              key="save_continue"
+              type="primary"
+              loading={isSaving}
+              onClick={() => handleModalSave(true)}
+            >
+              Save and Add Another
+            </Button>
+          ),
+        ]}
+      >
+        <Form form={modalForm} layout="vertical" name="skill_modal">
+          <Form.Item
+            name="category"
+            label={<Text strong>Skill Category</Text>}
+            rules={[{ required: true, message: 'Category is required' }]}
+          >
+            <Input
+              placeholder="e.g., Frontend, Backend, Database"
+              style={inputStyle}
+            />
+          </Form.Item>
+
+          <Divider orientation="left" plain>
+            Skills in this Category
+          </Divider>
+
+          <Form.List name="skills">
+            {(skillFields, { add: addSkill, remove: removeSkill }) => (
+              <div
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '12px',
+                }}
+              >
+                {skillFields.map(
+                  ({ key: skillKey, name: skillName, ...restField }) => (
+                    <Row key={skillKey} gutter={16} align="middle">
+                      <Col flex="auto">
+                        <Form.Item
+                          {...restField}
+                          name={[skillName, 'name']}
+                          noStyle
+                          rules={[
+                            {
+                              required: true,
+                              message: 'Skill name is required',
+                            },
+                          ]}
+                        >
+                          <Input
+                            placeholder="e.g., React, Node.js, PostgreSQL"
+                            style={inputStyle}
+                          />
+                        </Form.Item>
+                      </Col>
+                      <Col>
+                        <Button
+                          type="text"
+                          danger
+                          icon={<DeleteOutlined />}
+                          onClick={() => removeSkill(skillName)}
+                        />
+                      </Col>
+                    </Row>
+                  )
+                )}
+                <Button
+                  type="dashed"
+                  onClick={() => addSkill({ name: '', level: 50 })}
+                  icon={<PlusOutlined />}
+                  style={{ ...buttonStyle, width: '100%' }}
+                >
+                  Add Skill
+                </Button>
+              </div>
+            )}
+          </Form.List>
+        </Form>
+      </Modal>
+    </>
   );
 };

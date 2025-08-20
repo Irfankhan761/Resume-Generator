@@ -1,7 +1,6 @@
 import { supabase } from '../lib/supabaseClient';
 import type { Project } from '@routes/cv-builder/types/types';
 
-// Helper to convert database fields to frontend format
 const toFrontendFormat = (item: any): Project => ({
   id: item.id,
   title: item.title,
@@ -12,9 +11,7 @@ const toFrontendFormat = (item: any): Project => ({
   technologies: item.technologies || [],
 });
 
-// Helper to convert frontend format to database fields
 const toBackendFormat = (item: Project, userId: string) => ({
-  // If the ID is temporary, let the DB generate a new UUID
   id: item.id.startsWith('temp-') ? undefined : item.id,
   user_id: userId,
   title: item.title,
@@ -26,7 +23,6 @@ const toBackendFormat = (item: Project, userId: string) => ({
 });
 
 export const projectService = {
-  // Load all project entries for the current user
   async loadProjects(): Promise<{ error: any; data: Project[] | null }> {
     try {
       const {
@@ -53,10 +49,9 @@ export const projectService = {
     }
   },
 
-  // Save (upsert/delete) all project entries
-  async saveProjects(
-    projectList: Project[]
-  ): Promise<{ error: any; data: Project[] | null }> {
+  async saveProject(
+    project: Project
+  ): Promise<{ error: any; data: Project | null }> {
     try {
       const {
         data: { user },
@@ -65,43 +60,51 @@ export const projectService = {
         throw new Error('User not authenticated');
       }
 
-      // 1. Format the current list of projects for the database
-      const upsertData = projectList.map((proj) =>
-        toBackendFormat(proj, user.id)
-      );
+      const upsertData = toBackendFormat(project, user.id);
 
-      // 2. Upsert the data (create or update)
-      const { data: savedData, error: upsertError } = await supabase
+      const { data, error } = await supabase
         .from('projects')
-        .upsert(upsertData, { defaultToNull: false }) // Important: Prevents null ID error
-        .select();
+        .upsert([upsertData], { defaultToNull: false })
+        .select()
+        .single();
 
-      if (upsertError) {
-        console.error('Error upserting projects:', upsertError);
-        return { error: upsertError, data: null };
+      if (error) {
+        console.error('Error upserting project:', error);
+        return { error, data: null };
       }
 
-      // 3. Clean up: Delete any projects from the DB that are no longer in the list
-      const savedIds = savedData.map((item) => item.id);
-      const { data: existingEntries } = await supabase
+      return { error: null, data: toFrontendFormat(data) };
+    } catch (error) {
+      console.error('Unexpected error in saveProject:', error);
+      return { error, data: null };
+    }
+  },
+
+  async deleteProject(
+    projectId: string
+  ): Promise<{ error: any; data: any | null }> {
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) {
+        throw new Error('User not authenticated');
+      }
+
+      const { error, data } = await supabase
         .from('projects')
-        .select('id')
+        .delete()
+        .eq('id', projectId)
         .eq('user_id', user.id);
 
-      if (existingEntries) {
-        const idsToDelete = existingEntries
-          .map((e) => e.id)
-          .filter((id) => !savedIds.includes(id));
-
-        if (idsToDelete.length > 0) {
-          await supabase.from('projects').delete().in('id', idsToDelete);
-        }
+      if (error) {
+        console.error('Error deleting project:', error);
+        return { error, data: null };
       }
 
-      const formattedData = savedData.map(toFrontendFormat);
-      return { error: null, data: formattedData };
+      return { error: null, data };
     } catch (error) {
-      console.error('Unexpected error in saveProjects:', error);
+      console.error('Unexpected error in deleteProject:', error);
       return { error, data: null };
     }
   },

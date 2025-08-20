@@ -5,119 +5,148 @@ import {
   Form,
   Input,
   DatePicker,
-  Switch,
-  Divider,
   Typography,
   Row,
   Col,
   message,
   Spin,
+  Modal,
+  Radio,
+  InputNumber,
+  Switch,
 } from 'antd';
-import {
-  PlusOutlined,
-  DeleteOutlined,
-  TrophyOutlined,
-  SaveOutlined,
-} from '@ant-design/icons';
+import { PlusOutlined, DeleteOutlined, EditOutlined } from '@ant-design/icons';
 import type { Education } from '../../types/types';
-import { educationService } from 'core/services/education-services'; // Adjust this path if needed
+import { educationService } from 'core/services/education-services';
 import dayjs from 'dayjs';
 
 const { Title, Text } = Typography;
+const { confirm } = Modal;
 
 interface EducationFormProps {
   data: Education[];
   onChange: (data: Education[]) => void;
-  onSave?: () => void;
 }
 
-export const EducationForm: React.FC<EducationFormProps> = ({
-  data,
-  onChange,
-  onSave,
-}) => {
+export const EducationForm: React.FC<EducationFormProps> = ({ onChange }) => {
   const [form] = Form.useForm();
+  const [modalForm] = Form.useForm();
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isModalVisible, setIsModalVisible] = useState(false);
+  const [editingIndex, setEditingIndex] = useState<number | null>(null);
 
-  // Load data on component mount
+  const loadData = async () => {
+    setLoading(true);
+    const { data: savedData, error } = await educationService.loadEducation();
+    if (error && error.code !== 'PGRST116') {
+      message.error('Failed to load education details.');
+    }
+    const educationList = savedData || [];
+    onChange(educationList);
+    form.setFieldsValue({ education: educationList });
+    setLoading(false);
+  };
+
   useEffect(() => {
-    const loadData = async () => {
-      setLoading(true);
-      const { data: savedData, error } = await educationService.loadEducation();
-
-      if (error) {
-        console.error('Error loading education:', error);
-        if (error.code !== 'PGRST116') {
-          // PGRST116 means no rows found, which is not an error
-          message.error('Failed to load education details.');
-        }
-      } else if (savedData && savedData.length > 0) {
-        const formattedForForm = savedData.map((edu) => ({
-          ...edu,
-          startDate: edu.startDate ? dayjs(edu.startDate) : null,
-          endDate: edu.endDate ? dayjs(edu.endDate) : null,
-        }));
-        form.setFieldsValue({ education: formattedForForm });
-        onChange(savedData);
-      } else {
-        form.setFieldsValue({ education: data });
-      }
-      setLoading(false);
-    };
-
     loadData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const handleSave = async () => {
+  const showAddModal = () => {
+    setEditingIndex(null);
+    modalForm.resetFields();
+    modalForm.setFieldsValue({ gpaType: 'gpa', isCurrent: false });
+    setIsModalVisible(true);
+  };
+
+  const showEditModal = (index: number) => {
+    setEditingIndex(index);
+    const recordToEdit = (form.getFieldValue('education') || [])[index];
+    modalForm.setFieldsValue({
+      ...recordToEdit,
+      startDate: recordToEdit.startDate ? dayjs(recordToEdit.startDate) : null,
+      endDate: recordToEdit.endDate ? dayjs(recordToEdit.endDate) : null,
+    });
+    setIsModalVisible(true);
+  };
+
+  const handleCancel = () => {
+    setIsModalVisible(false);
+    setEditingIndex(null);
+  };
+
+  const handleModalSave = async (continueAdding = false) => {
     try {
-      setSaving(true);
-      await form.validateFields();
-      const values = form.getFieldsValue();
-      const educationData = values.education || [];
+      const modalValues = await modalForm.validateFields();
+      setIsSaving(true);
+      const educationList = form.getFieldValue('education') || [];
+      const currentId =
+        editingIndex !== null
+          ? educationList[editingIndex].id
+          : `temp-${Date.now()}`;
 
-      // Convert dayjs objects back to a consistent string format for the database
-      const formattedForDb = educationData.map((edu: any) => ({
-        ...edu,
-        startDate: edu.startDate
-          ? dayjs(edu.startDate).format('YYYY-MM-DD')
-          : null,
-        endDate: edu.endDate ? dayjs(edu.endDate).format('YYYY-MM-DD') : null,
-      }));
+      const itemToSave: Education = {
+        ...modalValues,
+        id: currentId,
+        startDate: modalValues.startDate
+          ? dayjs(modalValues.startDate).format('YYYY-MM-DD')
+          : undefined,
+        endDate: modalValues.endDate
+          ? dayjs(modalValues.endDate).format('YYYY-MM-DD')
+          : undefined,
+        isCurrent: modalValues.isCurrent || false,
+      };
 
-      const { error, data: savedData } = await educationService.saveEducation(
-        formattedForDb
+      const { error } = await educationService.saveEducation(itemToSave);
+      if (error) throw error;
+
+      message.success(
+        `Education ${editingIndex !== null ? 'updated' : 'saved'} successfully!`
       );
+      await loadData();
 
-      if (error) {
-        throw error;
+      if (continueAdding) {
+        setEditingIndex(null);
+        modalForm.resetFields();
+        modalForm.setFieldsValue({ gpaType: 'gpa', isCurrent: false });
+      } else {
+        setIsModalVisible(false);
+        setEditingIndex(null);
       }
-
-      message.success('Education details saved successfully!');
-
-      if (savedData) {
-        onChange(savedData);
-      }
-
-      if (onSave) {
-        onSave();
-      }
-    } catch (errorInfo) {
-      console.error('Validation or save error:', errorInfo);
-      message.error('Please fix the form errors before saving.');
+    } catch (error) {
+      message.error('An error occurred while saving.');
     } finally {
-      setSaving(false);
+      setIsSaving(false);
     }
   };
 
-  const handleValuesChange = (
-    _: any,
-    allValues: { education: Education[] }
-  ) => {
-    if (onChange) {
-      onChange(allValues.education);
-    }
+  const handleDelete = (indexToDelete: number) => {
+    const itemToDelete = (form.getFieldValue('education') || [])[indexToDelete];
+    if (itemToDelete.id.startsWith('temp-')) return;
+
+    confirm({
+      title: 'Are you sure you want to delete this entry?',
+      okText: 'Delete',
+      okType: 'danger',
+      onOk: async () => {
+        try {
+          setIsSaving(true);
+          const { error } = await educationService.deleteEducation(
+            itemToDelete.id
+          );
+          if (error) throw error;
+          message.success('Education entry deleted successfully!');
+          await loadData();
+        } catch (err) {
+          message.error('An error occurred while deleting.');
+        } finally {
+          setIsSaving(false);
+          setIsModalVisible(false);
+          setEditingIndex(null);
+        }
+      },
+    });
   };
 
   if (loading) {
@@ -131,341 +160,240 @@ export const EducationForm: React.FC<EducationFormProps> = ({
   }
 
   return (
-    <Card
-      className="mb-8"
-      style={{
-        background: '#ffffff',
-        borderRadius: '12px',
-        boxShadow: '0 4px 20px rgba(0, 0, 0, 0.08)',
-        border: 'none',
-      }}
-      title={
-        <div
-          style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-          }}
-        >
+    <>
+      <Card
+        className="mb-8"
+        style={{
+          background: '#ffffff',
+          borderRadius: '12px',
+          boxShadow: '0 4px 20px rgba(0, 0, 0, 0.08)',
+          border: 'none',
+        }}
+        title={
           <Title
             level={4}
             style={{ color: '#1a3353', margin: 0, fontWeight: 600 }}
           >
-            <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <svg
-                width="20"
-                height="20"
-                viewBox="0 0 24 24"
-                fill="none"
-                xmlns="http://www.w3.org/2000/svg"
-              >
-                <path
-                  d="M12 14L14 12M12 14L10 12M12 14L12 8M4 6C4 4.89543 4.89543 4 6 4H18C19.1046 4 20 4.89543 20 6V18C20 19.1046 19.1046 20 18 20H6C4.89543 20 4 19.1046 4 18V6Z"
-                  stroke="#1a3353"
-                  strokeWidth="1.5"
-                  strokeLinecap="round"
-                />
-              </svg>
-              Education Details
-            </span>
+            Education
           </Title>
-          <Button
-            type="primary"
-            icon={<SaveOutlined />}
-            loading={saving}
-            onClick={handleSave}
-            style={{ borderRadius: '6px' }}
-          >
-            Save
+        }
+        extra={
+          <Button onClick={showAddModal} type="primary" icon={<PlusOutlined />}>
+            Add Education
           </Button>
-        </div>
-      }
-    >
-      <Form
-        form={form}
-        onValuesChange={handleValuesChange}
-        initialValues={{ education: data }}
-        layout="vertical"
-        autoComplete="off"
+        }
       >
-        <Form.List name="education">
-          {(fields, { add, remove }) => (
-            <div
-              style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}
-            >
-              {fields.map(({ key, name, ...restField }, index) => (
-                <div
-                  key={key}
-                  style={{
-                    background: '#f9fbfd',
-                    borderRadius: '10px',
-                    padding: '24px',
-                    border: '1px solid #e6f0ff',
-                    position: 'relative',
-                  }}
-                >
-                  <Button
-                    type="text"
-                    danger
-                    onClick={() => remove(name)}
-                    icon={<DeleteOutlined />}
-                    style={{
-                      position: 'absolute',
-                      top: '16px',
-                      right: '16px',
-                      color: '#ff4d4f',
-                      zIndex: 1,
-                    }}
-                  />
-                  <Row gutter={24}>
-                    <Col xs={24} md={12}>
-                      <Form.Item
-                        {...restField}
-                        name={[name, 'institution']}
-                        label={
-                          <Text strong style={{ color: '#1a3353' }}>
-                            Institution
-                          </Text>
-                        }
-                        rules={[
-                          {
-                            required: true,
-                            message: 'Institution is required',
-                          },
-                        ]}
-                      >
-                        <Input
-                          placeholder="e.g., University of Technology"
-                          style={{ borderRadius: '8px', padding: '10px' }}
-                        />
-                      </Form.Item>
-                    </Col>
-                    <Col xs={24} md={12}>
-                      <Form.Item
-                        {...restField}
-                        name={[name, 'degree']}
-                        label={
-                          <Text strong style={{ color: '#1a3353' }}>
-                            Degree
-                          </Text>
-                        }
-                        rules={[
-                          { required: true, message: 'Degree is required' },
-                        ]}
-                      >
-                        <Input
-                          placeholder="e.g., Bachelor of Science"
-                          style={{ borderRadius: '8px', padding: '10px' }}
-                        />
-                      </Form.Item>
-                    </Col>
-                    <Col xs={24} md={12}>
-                      <Form.Item
-                        {...restField}
-                        name={[name, 'field']}
-                        label={
-                          <Text strong style={{ color: '#1a3353' }}>
-                            Field of Study
-                          </Text>
-                        }
-                        rules={[
-                          {
-                            required: true,
-                            message: 'Field of Study is required',
-                          },
-                        ]}
-                      >
-                        <Input
-                          placeholder="e.g., Computer Science"
-                          style={{ borderRadius: '8px', padding: '10px' }}
-                        />
-                      </Form.Item>
-                    </Col>
-                    <Col xs={24} md={12}>
-                      <Form.Item
-                        {...restField}
-                        name={[name, 'gpa']}
-                        label={
-                          <Text strong style={{ color: '#1a3353' }}>
-                            GPA/Marks
-                          </Text>
-                        }
-                      >
-                        <Input
-                          placeholder="e.g., 3.8/4.0 or 90%"
-                          style={{ borderRadius: '8px', padding: '10px' }}
-                        />
-                      </Form.Item>
-                    </Col>
-                    <Col xs={24} md={12}>
-                      <Form.Item
-                        {...restField}
-                        name={[name, 'startDate']}
-                        label={
-                          <Text strong style={{ color: '#1a3353' }}>
-                            Start Date
-                          </Text>
-                        }
-                        rules={[
-                          { required: true, message: 'Start date is required' },
-                        ]}
-                      >
-                        <DatePicker
-                          picker="month"
-                          placeholder="Select start date"
-                          className="w-full"
-                          style={{ borderRadius: '8px', padding: '10px' }}
-                        />
-                      </Form.Item>
-                    </Col>
-                    {/* FIXED SECTION */}
-                    <Col xs={24} md={12}>
-                      <Form.Item
-                        {...restField}
-                        name={[name, 'endDate']}
-                        label={
-                          <Text strong style={{ color: '#1a3353' }}>
-                            End Date
-                          </Text>
-                        }
-                        rules={[
-                          ({ getFieldValue }) => ({
-                            required: !getFieldValue([
-                              'education',
-                              name,
-                              'current',
-                            ]),
-                            message:
-                              'End date is required when not currently studying.',
-                          }),
-                        ]}
-                      >
-                        <DatePicker
-                          picker="month"
-                          placeholder="Select end date"
-                          className="w-full"
-                          style={{ borderRadius: '8px', padding: '10px' }}
-                          disabled={form.getFieldValue([
-                            'education',
-                            name,
-                            'current',
-                          ])}
-                        />
-                      </Form.Item>
-                    </Col>
-                    {/* END OF FIXED SECTION */}
-                    <Col xs={24}>
-                      <Form.Item
-                        {...restField}
-                        name={[name, 'current']}
-                        label={
-                          <Text strong style={{ color: '#1a3353' }}>
-                            Currently Studying
-                          </Text>
-                        }
-                        valuePropName="checked"
-                      >
-                        <Switch
-                          onChange={() =>
-                            form.validateFields([
-                              ['education', name, 'endDate'],
-                            ])
-                          }
-                        />
-                      </Form.Item>
-                    </Col>
-                  </Row>
-                  <Divider
-                    orientation="left"
-                    plain
-                    style={{ color: '#4a6ea9', fontWeight: 500 }}
-                  >
-                    <span
-                      style={{ display: 'flex', alignItems: 'center', gap: 8 }}
+        <Form form={form} layout="vertical" autoComplete="off">
+          <Form.List name="education">
+            {(fields) => (
+              <div
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '24px',
+                }}
+              >
+                {fields.length === 0 ? (
+                  <Text type="secondary">
+                    No education details added. Click "Add Education" to start.
+                  </Text>
+                ) : (
+                  fields.map(({ key, name }, index) => (
+                    <div
+                      key={key}
+                      style={{
+                        background: '#f9fbfd',
+                        borderRadius: '10px',
+                        padding: '24px',
+                        border: '1px solid #e6f0ff',
+                        position: 'relative',
+                      }}
                     >
-                      {' '}
-                      <TrophyOutlined style={{ color: '#ffc53d' }} />{' '}
-                      Achievements (Optional)
-                    </span>
-                  </Divider>
-                  <Form.List name={[name, 'achievements']}>
-                    {(
-                      achievementFields,
-                      { add: addAchievement, remove: removeAchievement }
-                    ) => (
                       <div
                         style={{
+                          position: 'absolute',
+                          top: '16px',
+                          right: '16px',
+                          zIndex: 1,
                           display: 'flex',
-                          flexDirection: 'column',
-                          gap: '12px',
+                          gap: '8px',
                         }}
                       >
-                        {achievementFields.map(
-                          ({ key: achKey, name: achName, ...restAchField }) => (
-                            <Row key={achKey} align="middle" gutter={8}>
-                              <Col flex="auto">
-                                <Form.Item
-                                  {...restAchField}
-                                  name={achName}
-                                  style={{ marginBottom: 0 }}
-                                >
-                                  <Input
-                                    placeholder="e.g., Dean's List, Scholarship Recipient"
-                                    style={{
-                                      borderRadius: '8px',
-                                      padding: '10px',
-                                    }}
-                                  />
-                                </Form.Item>
-                              </Col>
-                              <Col>
-                                <Button
-                                  type="text"
-                                  danger
-                                  onClick={() => removeAchievement(achName)}
-                                  icon={<DeleteOutlined />}
-                                />
-                              </Col>
-                            </Row>
-                          )
-                        )}
                         <Button
-                          type="dashed"
-                          onClick={() => addAchievement('')}
-                          icon={<PlusOutlined />}
-                          style={{ borderRadius: '8px' }}
-                        >
-                          Add Achievement
-                        </Button>
+                          type="text"
+                          onClick={() => showEditModal(index)}
+                          icon={<EditOutlined />}
+                        />
+                        <Button
+                          type="text"
+                          danger
+                          onClick={() => handleDelete(index)}
+                          icon={<DeleteOutlined />}
+                        />
                       </div>
-                    )}
-                  </Form.List>
-                </div>
-              ))}
-              <Button
-                type="dashed"
-                onClick={() =>
-                  add({
-                    id: `temp-${Date.now()}`,
-                    institution: '',
-                    degree: '',
-                    field: '',
-                    startDate: null,
-                    endDate: null,
-                    gpa: '',
-                    achievements: [],
-                    current: false,
-                  })
-                }
-                icon={<PlusOutlined />}
-                style={{ height: '44px', fontWeight: 500 }}
+                      <Row gutter={24}>
+                        <Col xs={24} md={12}>
+                          <Form.Item label={<Text strong>Degree Title</Text>}>
+                            <Text>
+                              {form.getFieldValue([
+                                'education',
+                                name,
+                                'degreeTitle',
+                              ])}
+                            </Text>
+                          </Form.Item>
+                        </Col>
+                        <Col xs={24} md={12}>
+                          <Form.Item label={<Text strong>Institute</Text>}>
+                            <Text>
+                              {form.getFieldValue([
+                                'education',
+                                name,
+                                'institute',
+                              ])}
+                            </Text>
+                          </Form.Item>
+                        </Col>
+                      </Row>
+                    </div>
+                  ))
+                )}
+              </div>
+            )}
+          </Form.List>
+        </Form>
+      </Card>
+
+      <Modal
+        title={
+          <Title level={5} style={{ margin: 0 }}>
+            {editingIndex !== null ? 'Edit Education' : 'Add New Education'}
+          </Title>
+        }
+        open={isModalVisible}
+        onCancel={handleCancel}
+        destroyOnClose
+        footer={[
+          <Button key="cancel" onClick={handleCancel}>
+            Cancel
+          </Button>,
+          editingIndex !== null && (
+            <Button
+              key="delete"
+              type="primary"
+              danger
+              onClick={() => handleDelete(editingIndex)}
+            >
+              Delete
+            </Button>
+          ),
+          <Button
+            key="save"
+            type="primary"
+            loading={isSaving}
+            onClick={() => handleModalSave(false)}
+          >
+            Save
+          </Button>,
+          editingIndex === null && (
+            <Button
+              key="save_continue"
+              type="primary"
+              loading={isSaving}
+              onClick={() => handleModalSave(true)}
+            >
+              Save and Continue
+            </Button>
+          ),
+        ]}
+      >
+        <Form
+          form={modalForm}
+          layout="vertical"
+          name="education_modal"
+          initialValues={{ isCurrent: false }}
+        >
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item
+                name="degreeTitle"
+                label="Degree Title"
+                rules={[{ required: true }]}
               >
-                Add Another Education
-              </Button>
-            </div>
-          )}
-        </Form.List>
-      </Form>
-    </Card>
+                <Input placeholder="e.g., Bachelor of Science" />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item name="majors" label="Majors">
+                <Input placeholder="e.g., Computer Science" />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item name="institute" label="Institute">
+                <Input placeholder="e.g., University of Technology" />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item name="city" label="City">
+                <Input placeholder="e.g., San Francisco" />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item
+                name="startDate"
+                label="Start Date"
+                rules={[{ required: true }]}
+              >
+                <DatePicker picker="month" style={{ width: '100%' }} />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item
+                shouldUpdate={(prev, curr) => prev.isCurrent !== curr.isCurrent}
+                noStyle
+              >
+                {({ getFieldValue }) => (
+                  <Form.Item
+                    name="endDate"
+                    label="End Date"
+                    rules={[{ required: !getFieldValue('isCurrent') }]}
+                  >
+                    <DatePicker
+                      picker="month"
+                      style={{ width: '100%' }}
+                      disabled={getFieldValue('isCurrent')}
+                    />
+                  </Form.Item>
+                )}
+              </Form.Item>
+            </Col>
+            <Col span={24}>
+              <Form.Item
+                name="isCurrent"
+                label="I currently study here"
+                valuePropName="checked"
+              >
+                <Switch />
+              </Form.Item>
+            </Col>
+            <Col span={24}>
+              <Form.Item label="GPA / Percentage">
+                <Input.Group compact>
+                  <Form.Item name="gpaValue" noStyle>
+                    <InputNumber placeholder="e.g., 3.8" />
+                  </Form.Item>
+                  <Form.Item name="gpaType" noStyle>
+                    <Radio.Group style={{ marginLeft: '10px' }}>
+                      <Radio value="gpa">GPA</Radio>
+                      <Radio value="percentage">Percentage</Radio>
+                    </Radio.Group>
+                  </Form.Item>
+                </Input.Group>
+              </Form.Item>
+            </Col>
+          </Row>
+        </Form>
+      </Modal>
+    </>
   );
 };
