@@ -9,6 +9,7 @@ import {
   message,
   Spin,
   Divider,
+  Modal, // Import Modal
 } from 'antd';
 import {
   UserOutlined,
@@ -23,6 +24,7 @@ import {
   FileTextOutlined,
   LinkOutlined,
   EnvironmentOutlined,
+  PlusOutlined, // For the new button
 } from '@ant-design/icons';
 import type { PersonalInfo } from '../../types/types';
 import { personalInfoService } from 'core/services/personal-info-sevice';
@@ -42,8 +44,9 @@ export const PersonalInfoForm: React.FC<PersonalInfoFormProps> = ({
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [hasLoaded, setHasLoaded] = useState(false);
+  const [isModalVisible, setIsModalVisible] = useState(false); // State for modal visibility
 
-  // Section visibility states
+  // Section visibility states are still needed to control the main form's display
   const [showJobTitle, setShowJobTitle] = useState(false);
   const [showLocation, setShowLocation] = useState(false);
   const [showSummary, setShowSummary] = useState(false);
@@ -64,25 +67,20 @@ export const PersonalInfoForm: React.FC<PersonalInfoFormProps> = ({
       await form.validateFields();
       const formData = form.getFieldsValue();
 
-      // --- PRIMARY FIX: NORMALIZE THE DATA BEFORE SAVING ---
-      // This ensures that any 'undefined' or null fields from the form are converted
-      // to empty strings. This is crucial because Supabase's .update() method
-      // ignores 'undefined' keys, leaving the old data in the database.
-      // By providing an empty string, we explicitly tell the database to clear the field.
+      // Normalize data, ensuring fields for hidden sections are cleared
       const normalizedData: PersonalInfo = {
         fullName: formData.fullName || '',
-        jobTitle: formData.jobTitle || '',
         email: formData.email || '',
         phone: formData.phone || '',
-        location: formData.location || '',
-        website: formData.website || '',
-        linkedin: formData.linkedin || '',
-        github: formData.github || '',
-        summary: formData.summary || '',
+        jobTitle: showJobTitle ? formData.jobTitle || '' : '',
+        location: showLocation ? formData.location || '' : '',
+        summary: showSummary ? formData.summary || '' : '',
+        website: showLinks ? formData.website || '' : '',
+        linkedin: showLinks ? formData.linkedin || '' : '',
+        github: showLinks ? formData.github || '' : '',
       };
 
       const { error, data: savedData } =
-        // Use the new normalizedData object to save
         await personalInfoService.savePersonalInfo(normalizedData);
 
       if (error) {
@@ -94,7 +92,6 @@ export const PersonalInfoForm: React.FC<PersonalInfoFormProps> = ({
       message.success('Personal information saved successfully!');
 
       if (savedData) {
-        // The data returned from the DB is the source of truth, so we format and use it
         const formattedData: PersonalInfo = {
           fullName: savedData.full_name,
           jobTitle: savedData.job_title,
@@ -108,7 +105,6 @@ export const PersonalInfoForm: React.FC<PersonalInfoFormProps> = ({
         };
         onChange(formattedData);
       } else {
-        // Fallback to the normalized data if for some reason savedData isn't returned
         onChange(normalizedData);
       }
 
@@ -123,7 +119,7 @@ export const PersonalInfoForm: React.FC<PersonalInfoFormProps> = ({
     }
   };
 
-  // Load data on component mount
+  // Load data and set initial section visibility
   useEffect(() => {
     const loadPersonalInfo = async () => {
       try {
@@ -161,18 +157,26 @@ export const PersonalInfoForm: React.FC<PersonalInfoFormProps> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Sync form with parent data
   useEffect(() => {
     if (hasLoaded && data) {
-      const currentValues = form.getFieldsValue();
-      const hasChanges = Object.keys(data).some(
-        (key) => currentValues[key] !== data[key as keyof PersonalInfo]
-      );
-
-      if (hasChanges) {
-        form.setFieldsValue(data);
-      }
+      form.setFieldsValue(data);
     }
   }, [data, form, hasLoaded]);
+
+  // Modal handler: updates section visibility based on form values
+  const handleModalOk = () => {
+    const values = form.getFieldsValue();
+    setShowJobTitle(!!values.jobTitle);
+    setShowLocation(!!values.location);
+    setShowSummary(!!values.summary);
+    setShowLinks(!!values.website || !!values.linkedin || !!values.github);
+    setIsModalVisible(false);
+  };
+
+  const handleModalCancel = () => {
+    setIsModalVisible(false);
+  };
 
   if (loading) {
     return (
@@ -184,39 +188,6 @@ export const PersonalInfoForm: React.FC<PersonalInfoFormProps> = ({
     );
   }
 
-  const AddSectionButton = ({
-    onClick,
-    icon,
-    text,
-  }: {
-    onClick: () => void;
-    icon: React.ReactNode;
-    text: string;
-  }) => (
-    <Button
-      type="dashed"
-      onClick={onClick}
-      style={{
-        height: '60px',
-        width: '100%',
-        border: '2px dashed #d9d9d9',
-        borderRadius: '8px',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: '8px',
-        transition: 'all 0.3s ease',
-        background: '#fafafa',
-      }}
-      className="hover:border-blue-400 hover:bg-blue-50"
-    >
-      <div style={{ fontSize: '18px', color: '#1890ff' }}>{icon}</div>
-      <span style={{ fontWeight: '500', color: '#262626', fontSize: '14px' }}>
-        {text}
-      </span>
-    </Button>
-  );
-
   return (
     <Card
       title={
@@ -227,17 +198,8 @@ export const PersonalInfoForm: React.FC<PersonalInfoFormProps> = ({
             alignItems: 'center',
           }}
         >
-          <span
-            style={{
-              fontSize: '20px',
-              fontWeight: '600',
-              color: '#2c3e50',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
-            }}
-          >
-            <UserOutlined style={{ color: '#3498db' }} />
+          <span style={{ fontSize: '20px', fontWeight: '600' }}>
+            <UserOutlined style={{ marginRight: '8px', color: '#3498db' }} />
             Personal Information
           </span>
           <Button
@@ -245,142 +207,70 @@ export const PersonalInfoForm: React.FC<PersonalInfoFormProps> = ({
             icon={<SaveOutlined />}
             loading={saving}
             onClick={handleSave}
-            style={{
-              background: '#1890ff',
-              borderColor: '#1890ff',
-              borderRadius: '6px',
-              fontWeight: '500',
-            }}
           >
             Save
           </Button>
         </div>
       }
       className="mb-8"
-      headStyle={{ borderBottom: '1px solid #e8e8e8', padding: '0 24px' }}
-      bodyStyle={{ padding: '24px' }}
-      style={{
-        background: '#ffffff',
-        borderRadius: '12px',
-        boxShadow: '0 4px 12px rgba(0, 0, 0, 0.05)',
-        border: '1px solid #e8e8e8',
-        transition: 'all 0.3s ease',
-      }}
-      hoverable
+      style={{ boxShadow: '0 4px 12px rgba(0, 0, 0, 0.05)' }}
     >
       <Form
         form={form}
         layout="vertical"
         initialValues={data}
         onValuesChange={handleValuesChange}
-        style={{ width: '100%' }}
       >
-        {/* Essential Information */}
-        <div style={{ marginBottom: '24px' }}>
-          <h3
-            style={{
-              color: '#1890ff',
-              marginBottom: '16px',
-              fontSize: '16px',
-              fontWeight: '600',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
-            }}
-          >
-            <UserOutlined />
-            Essential Information
-          </h3>
-
-          <Row gutter={[24, 16]}>
-            <Col xs={24} md={12}>
-              <Form.Item
-                name="fullName"
-                label={
-                  <span style={{ fontWeight: '500', color: '#34495e' }}>
-                    Full Name
-                  </span>
-                }
-                rules={[
-                  { required: true, message: 'Full Name is required' },
-                  { min: 2, message: 'Name must be at least 2 characters' },
-                ]}
-              >
-                <Input
-                  prefix={<UserOutlined style={{ color: '#7f8c8d' }} />}
-                  placeholder="Enter your full name"
-                  style={{
-                    background: '#ffffff',
-                    borderRadius: '8px',
-                    padding: '10px 12px',
-                    border: '1px solid #e0e0e0',
-                  }}
-                  className="hoverable-input"
-                />
-              </Form.Item>
-            </Col>
-            <Col xs={24} md={12}>
-              <Form.Item
-                name="email"
-                label={
-                  <span style={{ fontWeight: '500', color: '#34495e' }}>
-                    Email
-                  </span>
-                }
-                rules={[
-                  { required: true, message: 'Email is required' },
-                  { type: 'email', message: 'Invalid email format' },
-                ]}
-              >
-                <Input
-                  prefix={<MailOutlined style={{ color: '#7f8c8d' }} />}
-                  placeholder="Enter your email"
-                  style={{
-                    background: '#ffffff',
-                    borderRadius: '8px',
-                    padding: '10px 12px',
-                    border: '1px solid #e0e0e0',
-                  }}
-                  className="hoverable-input"
-                />
-              </Form.Item>
-            </Col>
-            <Col xs={24} md={12}>
-              <Form.Item
-                name="phone"
-                label={
-                  <span style={{ fontWeight: '500', color: '#34495e' }}>
-                    Phone
-                  </span>
-                }
-                rules={[
-                  { required: true, message: 'Phone is required' },
-                  {
-                    pattern: /^\+?[\d\s-]{10,}$/,
-                    message: 'Enter a valid phone number',
-                  },
-                ]}
-              >
-                <Input
-                  prefix={<PhoneOutlined style={{ color: '#7f8c8d' }} />}
-                  placeholder="Enter your phone number"
-                  style={{
-                    background: '#ffffff',
-                    borderRadius: '8px',
-                    padding: '10px 12px',
-                    border: '1px solid #e0e0e0',
-                  }}
-                  className="hoverable-input"
-                />
-              </Form.Item>
-            </Col>
-          </Row>
-        </div>
+        {/* --- Essential Information --- */}
+        <h3
+          style={{ color: '#1890ff', marginBottom: '16px', fontSize: '16px' }}
+        >
+          <UserOutlined style={{ marginRight: '8px' }} />
+          Essential Information
+        </h3>
+        <Row gutter={[24, 16]}>
+          <Col xs={24} md={12}>
+            <Form.Item
+              name="fullName"
+              label="Full Name"
+              rules={[{ required: true, message: 'Full Name is required' }]}
+            >
+              <Input
+                prefix={<UserOutlined />}
+                placeholder="Enter your full name"
+              />
+            </Form.Item>
+          </Col>
+          <Col xs={24} md={12}>
+            <Form.Item
+              name="email"
+              label="Email"
+              rules={[
+                { required: true, message: 'Email is required' },
+                { type: 'email', message: 'Invalid email format' },
+              ]}
+            >
+              <Input prefix={<MailOutlined />} placeholder="Enter your email" />
+            </Form.Item>
+          </Col>
+          <Col xs={24} md={12}>
+            <Form.Item
+              name="phone"
+              label="Phone"
+              rules={[{ required: true, message: 'Phone is required' }]}
+            >
+              <Input
+                prefix={<PhoneOutlined />}
+                placeholder="Enter your phone number"
+              />
+            </Form.Item>
+          </Col>
+        </Row>
 
         <Divider />
 
-        {/* Job Title Section */}
-        {showJobTitle ? (
+        {/* --- Conditionally Rendered Sections on Main Form --- */}
+        {showJobTitle && (
           <div style={{ marginBottom: '24px' }}>
             <div
               style={{
@@ -390,63 +280,30 @@ export const PersonalInfoForm: React.FC<PersonalInfoFormProps> = ({
                 marginBottom: '16px',
               }}
             >
-              <h3
-                style={{
-                  color: '#1890ff',
-                  margin: 0,
-                  fontSize: '16px',
-                  fontWeight: '600',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                }}
-              >
-                <EditOutlined />
+              <h3 style={{ color: '#1890ff', margin: 0, fontSize: '16px' }}>
+                <EditOutlined style={{ marginRight: '8px' }} />
                 Professional Title
               </h3>
               <Button
                 type="text"
                 size="small"
+                style={{ color: '#ff4d4f' }}
                 onClick={() => {
                   setShowJobTitle(false);
                   form.setFieldValue('jobTitle', '');
-                  // --- UI FIX: Update parent state immediately ---
                   onChange({ ...data, jobTitle: '' });
                 }}
-                style={{ color: '#ff4d4f' }}
               >
                 Remove
               </Button>
             </div>
-            <Row gutter={[24, 16]}>
-              <Col xs={24}>
-                <Form.Item
-                  name="jobTitle"
-                  label={
-                    <span style={{ fontWeight: '500', color: '#34495e' }}>
-                      Job Title
-                    </span>
-                  }
-                  rules={[{ required: true, message: 'Job Title is required' }]}
-                >
-                  <Input
-                    placeholder="e.g., Senior Software Engineer"
-                    style={{
-                      background: '#ffffff',
-                      borderRadius: '8px',
-                      padding: '10px 12px',
-                      border: '1px solid #e0e0e0',
-                    }}
-                    className="hoverable-input"
-                  />
-                </Form.Item>
-              </Col>
-            </Row>
+            <Form.Item name="jobTitle" label="Job Title">
+              <Input readOnly placeholder="e.g., Senior Software Engineer" />
+            </Form.Item>
           </div>
-        ) : null}
+        )}
 
-        {/* Location Section */}
-        {showLocation ? (
+        {showLocation && (
           <div style={{ marginBottom: '24px' }}>
             <div
               style={{
@@ -456,63 +313,34 @@ export const PersonalInfoForm: React.FC<PersonalInfoFormProps> = ({
                 marginBottom: '16px',
               }}
             >
-              <h3
-                style={{
-                  color: '#1890ff',
-                  margin: 0,
-                  fontSize: '16px',
-                  fontWeight: '600',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                }}
-              >
-                <EnvironmentOutlined />
+              <h3 style={{ color: '#1890ff', margin: 0, fontSize: '16px' }}>
+                <EnvironmentOutlined style={{ marginRight: '8px' }} />
                 Location
               </h3>
               <Button
                 type="text"
                 size="small"
+                style={{ color: '#ff4d4f' }}
                 onClick={() => {
                   setShowLocation(false);
                   form.setFieldValue('location', '');
-                  // --- UI FIX: Update parent state immediately ---
                   onChange({ ...data, location: '' });
                 }}
-                style={{ color: '#ff4d4f' }}
               >
                 Remove
               </Button>
             </div>
-            <Row gutter={[24, 16]}>
-              <Col xs={24}>
-                <Form.Item
-                  name="location"
-                  label={
-                    <span style={{ fontWeight: '500', color: '#34495e' }}>
-                      Location
-                    </span>
-                  }
-                >
-                  <Input
-                    prefix={<CompassOutlined style={{ color: '#7f8c8d' }} />}
-                    placeholder="e.g., San Francisco, CA"
-                    style={{
-                      background: '#ffffff',
-                      borderRadius: '8px',
-                      padding: '10px 12px',
-                      border: '1px solid #e0e0e0',
-                    }}
-                    className="hoverable-input"
-                  />
-                </Form.Item>
-              </Col>
-            </Row>
+            <Form.Item name="location" label="Location">
+              <Input
+                readOnly
+                prefix={<CompassOutlined />}
+                placeholder="e.g., San Francisco, CA"
+              />
+            </Form.Item>
           </div>
-        ) : null}
+        )}
 
-        {/* Summary Section */}
-        {showSummary ? (
+        {showSummary && (
           <div style={{ marginBottom: '24px' }}>
             <div
               style={{
@@ -522,70 +350,34 @@ export const PersonalInfoForm: React.FC<PersonalInfoFormProps> = ({
                 marginBottom: '16px',
               }}
             >
-              <h3
-                style={{
-                  color: '#1890ff',
-                  margin: 0,
-                  fontSize: '16px',
-                  fontWeight: '600',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                }}
-              >
-                <FileTextOutlined />
+              <h3 style={{ color: '#1890ff', margin: 0, fontSize: '16px' }}>
+                <FileTextOutlined style={{ marginRight: '8px' }} />
                 Professional Summary
               </h3>
               <Button
                 type="text"
                 size="small"
+                style={{ color: '#ff4d4f' }}
                 onClick={() => {
                   setShowSummary(false);
                   form.setFieldValue('summary', '');
-                  // --- UI FIX: Update parent state immediately ---
                   onChange({ ...data, summary: '' });
                 }}
-                style={{ color: '#ff4d4f' }}
               >
                 Remove
               </Button>
             </div>
-            <Row gutter={[24, 16]}>
-              <Col xs={24}>
-                <Form.Item
-                  name="summary"
-                  label={
-                    <span style={{ fontWeight: '500', color: '#34495e' }}>
-                      About You
-                    </span>
-                  }
-                  rules={[
-                    { required: true, message: 'Summary is required' },
-                    {
-                      min: 50,
-                      message: 'Summary should be at least 50 characters',
-                    },
-                  ]}
-                >
-                  <Input.TextArea
-                    rows={4}
-                    placeholder="Write a brief professional summary..."
-                    style={{
-                      background: '#ffffff',
-                      borderRadius: '8px',
-                      padding: '12px',
-                      border: '1px solid #e0e0e0',
-                    }}
-                    className="hoverable-input"
-                  />
-                </Form.Item>
-              </Col>
-            </Row>
+            <Form.Item name="summary" label="About You">
+              <Input.TextArea
+                readOnly
+                rows={4}
+                placeholder="Brief professional summary..."
+              />
+            </Form.Item>
           </div>
-        ) : null}
+        )}
 
-        {/* Links Section */}
-        {showLinks ? (
+        {showLinks && (
           <div style={{ marginBottom: '24px' }}>
             <div
               style={{
@@ -595,150 +387,123 @@ export const PersonalInfoForm: React.FC<PersonalInfoFormProps> = ({
                 marginBottom: '16px',
               }}
             >
-              <h3
-                style={{
-                  color: '#1890ff',
-                  margin: 0,
-                  fontSize: '16px',
-                  fontWeight: '600',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                }}
-              >
-                <LinkOutlined />
+              <h3 style={{ color: '#1890ff', margin: 0, fontSize: '16px' }}>
+                <LinkOutlined style={{ marginRight: '8px' }} />
                 Professional Links
               </h3>
               <Button
                 type="text"
                 size="small"
+                style={{ color: '#ff4d4f' }}
                 onClick={() => {
                   setShowLinks(false);
                   const newValues = { website: '', linkedin: '', github: '' };
                   form.setFieldsValue(newValues);
-                  // --- UI FIX: Update parent state immediately ---
                   onChange({ ...data, ...newValues });
                 }}
-                style={{ color: '#ff4d4f' }}
               >
                 Remove All
               </Button>
             </div>
             <Row gutter={[24, 16]}>
               <Col xs={24} md={8}>
-                <Form.Item
-                  name="website"
-                  label={
-                    <span style={{ fontWeight: '500', color: '#34495e' }}>
-                      Website
-                    </span>
-                  }
-                >
-                  <Input
-                    prefix={<GlobalOutlined style={{ color: '#7f8c8d' }} />}
-                    placeholder="https://yourwebsite.com"
-                    style={{
-                      background: '#ffffff',
-                      borderRadius: '8px',
-                      padding: '10px 12px',
-                      border: '1px solid #e0e0e0',
-                    }}
-                    className="hoverable-input"
-                  />
+                <Form.Item name="website" label="Website">
+                  <Input readOnly prefix={<GlobalOutlined />} />
                 </Form.Item>
               </Col>
               <Col xs={24} md={8}>
-                <Form.Item
-                  name="linkedin"
-                  label={
-                    <span style={{ fontWeight: '500', color: '#34495e' }}>
-                      LinkedIn
-                    </span>
-                  }
-                >
-                  <Input
-                    prefix={<LinkedinOutlined style={{ color: '#0077b5' }} />}
-                    placeholder="linkedin.com/in/yourprofile"
-                    style={{
-                      background: '#ffffff',
-                      borderRadius: '8px',
-                      padding: '10px 12px',
-                      border: '1px solid #e0e0e0',
-                    }}
-                    className="hoverable-input"
-                  />
+                <Form.Item name="linkedin" label="LinkedIn">
+                  <Input readOnly prefix={<LinkedinOutlined />} />
                 </Form.Item>
               </Col>
               <Col xs={24} md={8}>
-                <Form.Item
-                  name="github"
-                  label={
-                    <span style={{ fontWeight: '500', color: '#34495e' }}>
-                      GitHub
-                    </span>
-                  }
-                >
-                  <Input
-                    prefix={<GithubOutlined style={{ color: '#333' }} />}
-                    placeholder="github.com/yourusername"
-                    style={{
-                      background: '#ffffff',
-                      borderRadius: '8px',
-                      padding: '10px 12px',
-                      border: '1px solid #e0e0e0',
-                    }}
-                    className="hoverable-input"
-                  />
+                <Form.Item name="github" label="GitHub">
+                  <Input readOnly prefix={<GithubOutlined />} />
                 </Form.Item>
               </Col>
-            </Row>
-          </div>
-        ) : null}
-
-        {/* Add Section Buttons */}
-        {(!showJobTitle || !showLocation || !showSummary || !showLinks) && (
-          <div style={{ marginTop: '32px' }}>
-            <Row gutter={[12, 12]} justify="center">
-              {!showJobTitle && (
-                <Col xs={12} sm={8} md={6} lg={5}>
-                  <AddSectionButton
-                    onClick={() => setShowJobTitle(true)}
-                    icon={<EditOutlined />}
-                    text="Job Title"
-                  />
-                </Col>
-              )}
-              {!showLocation && (
-                <Col xs={12} sm={8} md={6} lg={5}>
-                  <AddSectionButton
-                    onClick={() => setShowLocation(true)}
-                    icon={<EnvironmentOutlined />}
-                    text="Location"
-                  />
-                </Col>
-              )}
-              {!showSummary && (
-                <Col xs={12} sm={8} md={6} lg={5}>
-                  <AddSectionButton
-                    onClick={() => setShowSummary(true)}
-                    icon={<FileTextOutlined />}
-                    text="Summary"
-                  />
-                </Col>
-              )}
-              {!showLinks && (
-                <Col xs={12} sm={8} md={6} lg={5}>
-                  <AddSectionButton
-                    onClick={() => setShowLinks(true)}
-                    icon={<LinkOutlined />}
-                    text="Links"
-                  />
-                </Col>
-              )}
             </Row>
           </div>
         )}
+
+        {/* --- Single Button to Open Modal --- */}
+        <div style={{ marginTop: '32px', textAlign: 'center' }}>
+          <Button
+            type="dashed"
+            icon={<PlusOutlined />}
+            onClick={() => setIsModalVisible(true)}
+            style={{
+              height: '50px',
+              width: '250px',
+              border: '2px dashed #d9d9d9',
+            }}
+          >
+            Add / Edit Optional Details
+          </Button>
+        </div>
       </Form>
+
+      {/* --- Modal with Form Fields --- */}
+      <Modal
+        title="Manage Optional Details"
+        visible={isModalVisible}
+        onOk={handleModalOk}
+        onCancel={handleModalCancel}
+        footer={[
+          <Button key="submit" type="primary" onClick={handleModalOk}>
+            Done
+          </Button>,
+        ]}
+      >
+        <Form form={form} layout="vertical">
+          <Form.Item
+            name="jobTitle"
+            label="Job Title"
+            help="Your professional role."
+          >
+            <Input placeholder="e.g., Senior Software Engineer" />
+          </Form.Item>
+
+          <Form.Item
+            name="location"
+            label="Location"
+            help="City and state, e.g., San Francisco, CA"
+          >
+            <Input
+              prefix={<CompassOutlined />}
+              placeholder="Enter your location"
+            />
+          </Form.Item>
+
+          <Form.Item
+            name="summary"
+            label="Professional Summary"
+            help="A brief 2-3 sentence summary about your skills and experience."
+          >
+            <Input.TextArea rows={4} placeholder="Write a short summary..." />
+          </Form.Item>
+
+          <Divider>Professional Links</Divider>
+
+          <Form.Item name="website" label="Website">
+            <Input
+              prefix={<GlobalOutlined />}
+              placeholder="https://yourwebsite.com"
+            />
+          </Form.Item>
+          <Form.Item name="linkedin" label="LinkedIn">
+            <Input
+              prefix={<LinkedinOutlined />}
+              placeholder="linkedin.com/in/yourprofile"
+            />
+          </Form.Item>
+          <Form.Item name="github" label="GitHub">
+            <Input
+              prefix={<GithubOutlined />}
+              placeholder="github.com/yourusername"
+            />
+          </Form.Item>
+        </Form>
+      </Modal>
     </Card>
   );
 };
