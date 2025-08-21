@@ -1,9 +1,10 @@
-import { PersonalInfoForm } from './form-components/personal-info-form';
-import { EducationForm } from './form-components/educational-form';
+import { useCallback } from 'react';
+import { PersonalInfoForm } from './forms/personal-info/personal-info-form';
+import { EducationForm } from './forms/education-info/educational-form';
 import type { CVData } from '../types/types';
-import { WorkExperienceForm } from './form-components/work-experience-form';
-import { ProjectForm } from './form-components/project-form';
-import { SkillForm } from './form-components/skills-form';
+import { WorkExperienceForm } from './forms/work-experience-info/work-experience-form';
+import { ProjectForm } from './forms/project-form/project-form';
+import { SkillForm } from './forms/skills-form/skills-form';
 
 interface CVFormsProps {
   data: CVData;
@@ -12,22 +13,40 @@ interface CVFormsProps {
 }
 
 export const CVForms = ({ data, onChange, activeSection }: CVFormsProps) => {
-  const handlePersonalInfoChange = (personalInfo: CVData['personalInfo']) => {
-    onChange({ ...data, personalInfo });
-  };
+  const handlePersonalInfoChange = useCallback(
+    (personalInfo: CVData['personalInfo']) => {
+      onChange({ ...data, personalInfo });
+    },
+    [data, onChange]
+  );
 
-  const handleEducationChange = (education: CVData['education']) => {
-    onChange({ ...data, education });
-  };
-  const handleExperienceChange = (workExperience: CVData['workExperience']) => {
-    onChange({ ...data, workExperience });
-  };
-  const handleProjectChange = (projects: CVData['projects']) => {
-    onChange({ ...data, projects });
-  };
-  const handleSkillChange = (skills: CVData['skills']) => {
-    onChange({ ...data, skills });
-  };
+  const handleEducationChange = useCallback(
+    (education: CVData['education']) => {
+      onChange({ ...data, education });
+    },
+    [data, onChange]
+  );
+
+  const handleExperienceChange = useCallback(
+    (workExperience: CVData['workExperience']) => {
+      onChange({ ...data, workExperience });
+    },
+    [data, onChange]
+  );
+
+  const handleProjectChange = useCallback(
+    (projects: CVData['projects']) => {
+      onChange({ ...data, projects });
+    },
+    [data, onChange]
+  );
+
+  const handleSkillChange = useCallback(
+    (skills: CVData['skills']) => {
+      onChange({ ...data, skills });
+    },
+    [data, onChange]
+  );
 
   return (
     <div className="h-full overflow-y-auto">
@@ -38,22 +57,18 @@ export const CVForms = ({ data, onChange, activeSection }: CVFormsProps) => {
         />
       )}
       {activeSection === 'Education' && (
-        <EducationForm data={data.education} onChange={handleEducationChange} />
+        <EducationForm onChange={handleEducationChange} />
       )}
+
       {activeSection === 'Work Experience' && (
-        <WorkExperienceForm
-          data={data.workExperience}
-          onChange={handleExperienceChange}
-        />
+        <WorkExperienceForm onChange={handleExperienceChange} />
       )}
 
       {activeSection === 'Projects' && (
-        <ProjectForm data={data.projects} onChange={handleProjectChange} />
+        <ProjectForm onChange={handleProjectChange} />
       )}
 
-      {activeSection === 'Skills' && (
-        <SkillForm data={data.skills} onChange={handleSkillChange} />
-      )}
+      {activeSection === 'Skills' && <SkillForm onChange={handleSkillChange} />}
     </div>
   );
 };

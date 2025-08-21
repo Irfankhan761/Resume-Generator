@@ -1,4 +1,4 @@
-import { supabase } from '../lib/supabaseClient';
+import { supabase } from '../../../core/lib/supabaseClient';
 import type { PersonalInfo } from '@routes/cv-builder/types/types';
 
 export const personalInfoService = {

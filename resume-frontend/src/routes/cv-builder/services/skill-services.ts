@@ -1,4 +1,4 @@
-import { supabase } from '../lib/supabaseClient';
+import { supabase } from '../../../core/lib/supabaseClient';
 import type { Skill } from '@routes/cv-builder/types/types';
 
 const toFrontendFormat = (item: any): Skill => ({
