@@ -222,12 +222,7 @@ export const PersonalInfoForm: React.FC<PersonalInfoFormProps> = ({
         onValuesChange={handleValuesChange}
       >
         {/* --- Essential Information --- */}
-        <h3
-          style={{ color: '#1890ff', marginBottom: '16px', fontSize: '16px' }}
-        >
-          <UserOutlined style={{ marginRight: '8px' }} />
-          Essential Information
-        </h3>
+
         <Row gutter={[24, 16]}>
           <Col xs={24} md={12}>
             <Form.Item
