@@ -1,8 +1,7 @@
-import { Form, Input, Button, Card, Breadcrumb, message, Alert } from 'antd';
-import { LockOutlined } from '@ant-design/icons';
+import { Card, Breadcrumb, message, Alert, Button } from 'antd';
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { updatePassword } from 'core/services/auth-services';
+import ResetPasswordForm from './components/reset-password-form';
 
 const parseHashFragment = (hash: string) => {
   const params = new URLSearchParams(hash.substring(1));
@@ -14,15 +13,12 @@ const parseHashFragment = (hash: string) => {
 };
 
 const ResetPasswordPage = () => {
-  const [loading, setLoading] = useState(false);
   const [verified, setVerified] = useState(false);
   const [tokenChecked, setTokenChecked] = useState(false);
-  const [form] = Form.useForm();
   const navigate = useNavigate();
 
   const verifyToken = useCallback(async (token: string) => {
     try {
-      setLoading(true);
       localStorage.setItem('supabaseResetToken', token);
       setVerified(true);
       message.success(
@@ -32,8 +28,7 @@ const ResetPasswordPage = () => {
       console.error('Token verification error:', error);
       message.error(error.message || 'Invalid or expired reset link.');
     } finally {
-      setLoading(false);
-      setTokenChecked(true);
+      setTokenChecked(true); // This will trigger a re-render to the correct view.
     }
   }, []);
 
@@ -42,7 +37,6 @@ const ResetPasswordPage = () => {
 
     if (hash) {
       const { access_token, type } = parseHashFragment(hash);
-
       if (access_token && type === 'recovery') {
         verifyToken(access_token);
         return;
@@ -60,28 +54,6 @@ const ResetPasswordPage = () => {
     }
   }, [verifyToken]);
 
-  const onFinish = async (values: any) => {
-    setLoading(true);
-    try {
-      const { error } = await updatePassword(values.password);
-
-      if (error) {
-        throw error;
-      }
-
-      localStorage.removeItem('supabaseResetToken');
-
-      message.success('Password reset successfully!');
-      navigate('/login');
-    } catch (error: any) {
-      message.error(
-        error.message || 'Failed to reset password. Please try again.'
-      );
-    } finally {
-      setLoading(false);
-    }
-  };
-
   if (!tokenChecked) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-50 p-4">
@@ -94,14 +66,11 @@ const ResetPasswordPage = () => {
               <h1 className="text-2xl font-bold bg-gradient-to-br from-blue-400 to-indigo-700 bg-clip-text text-transparent">
                 Verifying Reset Link
               </h1>
-              <p className="opacity-90">
-                Please wait while we verify your reset link
-              </p>
+              <p className="opacity-90">Please wait while we check your link</p>
             </div>
-
             <div className="text-center py-8">
               <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-              <p className="mt-4 text-gray-600">Verifying your reset link...</p>
+              <p className="mt-4 text-gray-600">Verifying...</p>
             </div>
           </div>
         </Card>
@@ -121,19 +90,15 @@ const ResetPasswordPage = () => {
               <h1 className="text-2xl font-bold bg-gradient-to-br from-blue-400 to-indigo-700 bg-clip-text text-transparent">
                 Invalid Reset Link
               </h1>
-              <p className="opacity-90">
-                The password reset link is invalid or has expired
-              </p>
+              <p className="opacity-90">This link may be expired or invalid</p>
             </div>
-
             <Alert
               message="Invalid Reset Link"
-              description="The password reset link is invalid, has expired, or has already been used. Please request a new reset link."
+              description="The password reset link is invalid, has expired, or has already been used. Please request a new one."
               type="error"
               showIcon
               className="mb-6"
             />
-
             <div className="mt-6 text-center">
               <Button
                 type="primary"
@@ -143,7 +108,6 @@ const ResetPasswordPage = () => {
                 Request New Reset Link
               </Button>
             </div>
-
             <div className="mt-6 text-center text-sm text-gray-500">
               <a
                 href="/login"
@@ -170,9 +134,7 @@ const ResetPasswordPage = () => {
           </h1>
           <p className="opacity-90">Create a new password for your account</p>
         </div>
-
         <div className="p-8">
-          {/* Breadcrumb Navigation */}
           <Breadcrumb className="mb-6 text-sm">
             <Breadcrumb.Item>
               <a href="/" className="text-blue-600 hover:text-blue-800">
@@ -188,80 +150,13 @@ const ResetPasswordPage = () => {
               Reset Password
             </Breadcrumb.Item>
           </Breadcrumb>
-
           <Alert
             message="Create a new password for your account"
             type="info"
             showIcon
             className="mb-6"
           />
-
-          <Form
-            form={form}
-            name="resetPassword"
-            onFinish={onFinish}
-            layout="vertical"
-            className="space-y-4"
-          >
-            <Form.Item
-              name="password"
-              label={
-                <span className="text-gray-700 font-medium">New Password</span>
-              }
-              rules={[
-                { required: true, message: 'Please input your new password!' },
-                { min: 6, message: 'Password must be at least 6 characters!' },
-              ]}
-            >
-              <Input.Password
-                prefix={<LockOutlined className="text-gray-400" />}
-                placeholder="Enter your new password"
-                className="rounded-lg h-12 px-4 border-gray-300 hover:border-blue-400 focus:border-blue-500 focus:shadow-sm"
-                size="large"
-              />
-            </Form.Item>
-
-            <Form.Item
-              name="confirmPassword"
-              label={
-                <span className="text-gray-700 font-medium">
-                  Confirm Password
-                </span>
-              }
-              dependencies={['password']}
-              rules={[
-                { required: true, message: 'Please confirm your password!' },
-                ({ getFieldValue }) => ({
-                  validator(_, value) {
-                    if (!value || getFieldValue('password') === value) {
-                      return Promise.resolve();
-                    }
-                    return Promise.reject(new Error('Passwords do not match!'));
-                  },
-                }),
-              ]}
-            >
-              <Input.Password
-                prefix={<LockOutlined className="text-gray-400" />}
-                placeholder="Confirm your new password"
-                className="rounded-lg h-12 px-4 border-gray-300 hover:border-blue-400 focus:border-blue-500 focus:shadow-sm"
-                size="large"
-              />
-            </Form.Item>
-
-            <Form.Item className="mb-0">
-              <Button
-                type="primary"
-                htmlType="submit"
-                loading={loading}
-                className="w-full h-12 text-lg font-semibold rounded-lg bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 border-0 shadow-sm transition-all transform hover:scale-[1.01]"
-                size="large"
-              >
-                Reset Password
-              </Button>
-            </Form.Item>
-          </Form>
-
+          <ResetPasswordForm />
           <div className="mt-6 text-center text-sm text-gray-500">
             Remember your password?{' '}
             <a

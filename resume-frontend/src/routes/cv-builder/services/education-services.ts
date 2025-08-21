@@ -1,4 +1,4 @@
-import { supabase } from '../lib/supabaseClient';
+import { supabase } from '../../../core/lib/supabaseClient';
 import type { Education } from '@routes/cv-builder/types/types';
 
 // Helper to convert database fields to frontend format

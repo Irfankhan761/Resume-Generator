@@ -1,9 +1,9 @@
-import { PersonalInfoPreview } from './preview-components/personal-info-view';
-import { EducationPreview } from './preview-components/education-view';
+import { PersonalInfoPreview } from './previews/personal-info-view';
+import { EducationPreview } from './previews/education-view';
 import type { CVData } from '../types/types';
-import { WorkExperiencePreview } from './preview-components/work-experience-view';
-import { ProjectPreview } from './preview-components/projects-view';
-import { SkillPreview } from './preview-components/skills-view';
+import { WorkExperiencePreview } from './previews/work-experience-view';
+import { ProjectPreview } from './previews/projects-view';
+import { SkillPreview } from './previews/skills-view';
 
 interface CVPreviewsProps {
   data: CVData;

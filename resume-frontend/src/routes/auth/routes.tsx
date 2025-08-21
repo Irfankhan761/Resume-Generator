@@ -1,9 +1,9 @@
 import { RouteObject } from 'react-router-dom';
 
-import SignupPage from './components/signup/signup';
-import LoginPage from './components/login/Login';
-import ForgotPasswordPage from './components/forgot-password/forgot-password';
-import ResetPasswordPage from './components/rest-password/reset-password';
+import SignupPage from './auth-pages/signup';
+import LoginPage from './auth-pages/Login';
+import ForgotPasswordPage from './auth-pages/forgot-password';
+import ResetPasswordPage from './auth-pages/reset-password';
 
 export const authRoutes: RouteObject[] = [
   {
