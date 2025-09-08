@@ -30,30 +30,35 @@ export const WorkExperienceForm: React.FC<WorkExperienceFormProps> = ({
     onChangeRef.current = onChange;
   }, [onChange]);
 
-  useEffect(() => {
-    const doLoad = async () => {
-      setLoading(true);
+  const didLoadRef = useRef(false);
+
+  const loadData = useCallback(async (showLoading = true) => {
+    try {
+      if (showLoading) setLoading(true);
       const { data: savedData, error } =
         await workExperienceService.loadWorkExperience();
-      if (error && error.code !== 'PGRST116') {
+      if (error && (error as any).code !== 'PGRST116') {
         message.error('Failed to load work experience.');
       }
       const loadedList = savedData || [];
       setExperienceList(loadedList);
       onChangeRef.current(loadedList);
-      setLoading(false);
-    };
-    doLoad();
+    } catch (err) {
+      message.error('Failed to load work experience.');
+    } finally {
+      if (showLoading) setLoading(false);
+    }
   }, []);
 
+  useEffect(() => {
+    if (didLoadRef.current) return;
+    didLoadRef.current = true;
+    loadData();
+  }, [loadData]);
+
   const reloadData = useCallback(async () => {
-    const { data: savedData, error } =
-      await workExperienceService.loadWorkExperience();
-    if (error) message.error('Failed to reload work experience.');
-    const reloadedList = savedData || [];
-    setExperienceList(reloadedList);
-    onChangeRef.current(reloadedList);
-  }, []);
+    await loadData(false);
+  }, [loadData]);
 
   const showAddModal = useCallback(() => {
     setEditingIndex(null);

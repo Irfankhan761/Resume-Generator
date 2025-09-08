@@ -21,28 +21,36 @@ export const EducationForm: React.FC<EducationFormProps> = ({ onChange }) => {
   const [isSaving, setIsSaving] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
+  const didLoadRef = useRef(false);
 
   const onChangeRef = useRef(onChange);
+
   useEffect(() => {
     onChangeRef.current = onChange;
   }, [onChange]);
-  useEffect(() => {
-    const doLoad = async () => {
-      setLoading(true);
+
+  const loadData = useCallback(async (showLoading = true) => {
+    try {
+      if (showLoading) setLoading(true);
       const { data: savedData, error } = await educationService.loadEducation();
-      if (error && error.code !== 'PGRST116') {
+      if (error && (error as any).code !== 'PGRST116') {
         message.error('Failed to load education details.');
       }
       const loadedList = savedData || [];
       setEducationList(loadedList);
-      // Call the function from the ref, not the prop directly
       onChangeRef.current(loadedList);
-
-      setLoading(false);
-    };
-
-    doLoad();
+    } catch (err) {
+      message.error('Failed to load education details.');
+    } finally {
+      if (showLoading) setLoading(false);
+    }
   }, []);
+
+  useEffect(() => {
+    if (didLoadRef.current) return;
+    didLoadRef.current = true;
+    loadData();
+  }, [loadData]);
 
   const showAddModal = useCallback(() => {
     setEditingIndex(null);
@@ -73,12 +81,8 @@ export const EducationForm: React.FC<EducationFormProps> = ({ onChange }) => {
   }, []);
 
   const reloadData = useCallback(async () => {
-    const { data: savedData, error } = await educationService.loadEducation();
-    if (error) message.error('Failed to reload education details.');
-    const loadedList = savedData || [];
-    setEducationList(loadedList);
-    onChangeRef.current(loadedList);
-  }, []);
+    await loadData(false);
+  }, [loadData]);
 
   const handleModalSave = useCallback(
     async (continueAdding = false) => {

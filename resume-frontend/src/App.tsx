@@ -1,11 +1,11 @@
-import "./App.css";
-import { useRoutes } from "react-router-dom";
-import { routes } from "./routes/route";
+import './App.css';
+import { useRoutes } from 'react-router-dom';
+import { routes } from './routes/route';
 
 function App() {
   const element = useRoutes(routes);
 
-  return <>{element}</>;
+  return <div className="overflow-hidden">{element}</div>;
 }
 
 export default App;

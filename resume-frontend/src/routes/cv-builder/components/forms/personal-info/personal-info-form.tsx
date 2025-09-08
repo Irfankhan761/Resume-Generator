@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Card, Form, Input, Row, Col, Button, message, Spin } from 'antd';
 import {
   UserOutlined,
@@ -110,44 +110,46 @@ export const PersonalInfoForm: React.FC<PersonalInfoFormProps> = ({
     }
   };
 
-  useEffect(() => {
-    const loadPersonalInfo = async () => {
-      try {
-        const { data: savedData, error } =
-          await personalInfoService.loadPersonalInfo();
-        if (error && error.code !== 'PGRST116') {
-          message.error('Failed to load saved data');
-        } else if (savedData) {
-          form.setFieldsValue(savedData);
-          onChange(savedData);
-          setVisibility({
-            jobTitle: !!savedData.jobTitle,
-            location: !!savedData.location,
-            summary: !!savedData.summary,
-            links: !!(
-              savedData.website ||
-              savedData.linkedin ||
-              savedData.github
-            ),
-          });
-        } else {
-          form.setFieldsValue(data);
-        }
-      } catch (err) {
-        console.error('Unexpected error:', err);
-      } finally {
-        setLoading(false);
-        setHasLoaded(true);
+  const didLoadRef = useRef(false);
+
+  const loadPersonalInfo = useCallback(async () => {
+    try {
+      setLoading(true);
+      const { data: savedData, error } =
+        await personalInfoService.loadPersonalInfo();
+      if (error && (error as any).code !== 'PGRST116') {
+        message.error('Failed to load saved data');
+      } else if (savedData) {
+        // If your savedData shape differs from form shape, map accordingly
+        form.setFieldsValue(savedData);
+        onChange(savedData);
+        setVisibility({
+          jobTitle: !!savedData.jobTitle,
+          location: !!savedData.location,
+          summary: !!savedData.summary,
+          links: !!(
+            savedData.website ||
+            savedData.linkedin ||
+            savedData.github
+          ),
+        });
+      } else {
+        form.setFieldsValue(data);
       }
-    };
-
-    loadPersonalInfo();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    } catch (err) {
+      console.error('Unexpected error:', err);
+      message.error('Failed to load saved data');
+    } finally {
+      setLoading(false);
+      setHasLoaded(true);
+    }
+  }, [form, onChange, data]);
 
   useEffect(() => {
-    if (hasLoaded && data) form.setFieldsValue(data);
-  }, [data, form, hasLoaded]);
+    if (didLoadRef.current) return;
+    didLoadRef.current = true;
+    loadPersonalInfo();
+  }, [loadPersonalInfo]);
 
   const handleModalOk = () => {
     const values = form.getFieldsValue();

@@ -27,28 +27,34 @@ export const ProjectForm: React.FC<ProjectFormProps> = ({ onChange }) => {
     onChangeRef.current = onChange;
   }, [onChange]);
 
-  useEffect(() => {
-    const doLoad = async () => {
-      setLoading(true);
+  const didLoadRef = useRef(false);
+
+  const loadData = useCallback(async (showLoading = true) => {
+    try {
+      if (showLoading) setLoading(true);
       const { data: savedData, error } = await projectService.loadProjects();
-      if (error && error.code !== 'PGRST116') {
+      if (error && (error as any).code !== 'PGRST116') {
         message.error('Failed to load project details.');
       }
       const loadedList = savedData || [];
       setProjectList(loadedList);
       onChangeRef.current(loadedList);
-      setLoading(false);
-    };
-    doLoad();
+    } catch (err) {
+      message.error('Failed to load project details.');
+    } finally {
+      if (showLoading) setLoading(false);
+    }
   }, []);
 
+  useEffect(() => {
+    if (didLoadRef.current) return;
+    didLoadRef.current = true;
+    loadData();
+  }, [loadData]);
+
   const reloadData = useCallback(async () => {
-    const { data: savedData, error } = await projectService.loadProjects();
-    if (error) message.error('Failed to reload project details.');
-    const reloadedList = savedData || [];
-    setProjectList(reloadedList);
-    onChangeRef.current(reloadedList);
-  }, []);
+    await loadData(false);
+  }, [loadData]);
 
   const showAddModal = useCallback(() => {
     setEditingIndex(null);

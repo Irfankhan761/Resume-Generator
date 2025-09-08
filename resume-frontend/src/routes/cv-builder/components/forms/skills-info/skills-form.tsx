@@ -26,28 +26,34 @@ export const SkillForm: React.FC<SkillFormProps> = ({ onChange }) => {
     onChangeRef.current = onChange;
   }, [onChange]);
 
-  useEffect(() => {
-    const doLoad = async () => {
-      setLoading(true);
+  const didLoadRef = useRef(false);
+
+  const loadData = useCallback(async (showLoading = true) => {
+    try {
+      if (showLoading) setLoading(true);
       const { data: savedData, error } = await skillService.loadSkills();
-      if (error && error.code !== 'PGRST116') {
+      if (error && (error as any).code !== 'PGRST116') {
         message.error('Failed to load skill details.');
       }
       const loadedList = savedData || [];
       setSkillList(loadedList);
       onChangeRef.current(loadedList);
-      setLoading(false);
-    };
-    doLoad();
+    } catch (err) {
+      message.error('Failed to load skill details.');
+    } finally {
+      if (showLoading) setLoading(false);
+    }
   }, []);
 
+  useEffect(() => {
+    if (didLoadRef.current) return;
+    didLoadRef.current = true;
+    loadData();
+  }, [loadData]);
+
   const reloadData = useCallback(async () => {
-    const { data: savedData, error } = await skillService.loadSkills();
-    if (error) message.error('Failed to reload skill details.');
-    const reloadedList = savedData || [];
-    setSkillList(reloadedList);
-    onChangeRef.current(reloadedList);
-  }, []);
+    await loadData(false);
+  }, [loadData]);
 
   const showAddModal = useCallback(() => {
     setEditingIndex(null);
