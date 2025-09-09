@@ -1,8 +1,7 @@
-// src/components/ResetPasswordModal.tsx
 import React from 'react';
 import { Modal, message } from 'antd';
-import { supabase } from '../../../../core/lib/supabaseClient'; // Adjust path as needed
-import { resetPasswordForEmail } from '../../../../core/services/auth-services'; // Adjust path as needed
+import { supabase } from '../../../../core/lib/supabaseClient';
+import { resetPasswordForEmail } from '../../../../core/services/auth-services';
 import { useNavigate } from 'react-router-dom';
 
 interface ResetPasswordModalProps {
