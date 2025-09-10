@@ -1,5 +1,4 @@
-// src/pages/cv-builder/CV.tsx
-import { useState, useCallback, useRef, useEffect } from 'react';
+import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import type { CVData } from './types/types';
 import { CVForms } from './components/cv-form';
 import { CVPreviews } from './components/cv-preview';
@@ -22,6 +21,9 @@ export type CVSection =
   | 'Projects'
   | 'Skills';
 
+const AUTO_SAVE_KEY = 'cv_autoSaveEnabled';
+const REAL_TIME_PREVIEW_KEY = 'cv_realTimePreviewEnabled';
+
 const initialData: CVData = {
   personalInfo: {
     fullName: 'Irfan Khan',
@@ -41,6 +43,15 @@ const initialData: CVData = {
   skills: [],
 };
 
+const formatLastSaved = (date: Date | null) => {
+  if (!date) return 'Never';
+  const now = new Date();
+  const diff = now.getTime() - date.getTime();
+  if (diff < 60000) return 'Just now';
+  if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`;
+  return date.toLocaleDateString();
+};
+
 export const CV = () => {
   const [activeSection, setActiveSection] =
     useState<CVSection>('Personal Info');
@@ -50,21 +61,24 @@ export const CV = () => {
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
   const [previewMode, setPreviewMode] = useState(false);
   const [unsavedChanges, setUnsavedChanges] = useState(false);
+
+  const [autoSaveEnabled, setAutoSaveEnabled] = useState(() => {
+    return localStorage.getItem(AUTO_SAVE_KEY) !== 'false';
+  });
+  const [realTimePreviewEnabled, setRealTimePreviewEnabled] = useState(() => {
+    return localStorage.getItem(REAL_TIME_PREVIEW_KEY) !== 'false';
+  });
+
   const previewRef = useRef<HTMLDivElement>(null);
   const autoSaveTimer = useRef<NodeJS.Timeout>();
 
-  // Load data on component mount
   useEffect(() => {
     const savedData = localStorage.getItem('cv-data');
     const savedTimestamp = localStorage.getItem('cv-last-saved');
-
     if (savedData) {
       try {
-        const parsedData = JSON.parse(savedData);
-        setCVData(parsedData);
-        if (savedTimestamp) {
-          setLastSaved(new Date(savedTimestamp));
-        }
+        setCVData(JSON.parse(savedData));
+        if (savedTimestamp) setLastSaved(new Date(savedTimestamp));
       } catch (error) {
         console.error('Failed to parse saved CV data:', error);
         message.error('Failed to load saved data');
@@ -72,26 +86,42 @@ export const CV = () => {
     }
   }, []);
 
-  // Auto-save functionality
-  const autoSave = useCallback(async (data: CVData) => {
-    if (autoSaveTimer.current) {
-      clearTimeout(autoSaveTimer.current);
-    }
-
-    autoSaveTimer.current = setTimeout(() => {
-      setIsAutoSaving(true);
-      try {
-        localStorage.setItem('cv-data', JSON.stringify(data));
-        localStorage.setItem('cv-last-saved', new Date().toISOString());
-        setLastSaved(new Date());
-        setUnsavedChanges(false);
-      } catch (error) {
-        console.error('Auto-save failed:', error);
-      } finally {
-        setIsAutoSaving(false);
+  useEffect(() => {
+    const handleStorageChange = (event: StorageEvent) => {
+      if (event.key === AUTO_SAVE_KEY) {
+        setAutoSaveEnabled(event.newValue !== 'false');
       }
-    }, 2000); // Auto-save after 2 seconds of inactivity
+      if (event.key === REAL_TIME_PREVIEW_KEY) {
+        setRealTimePreviewEnabled(event.newValue !== 'false');
+      }
+    };
+    window.addEventListener('storage', handleStorageChange);
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+    };
   }, []);
+
+  const autoSave = useCallback(
+    (data: CVData) => {
+      if (!autoSaveEnabled) return;
+      if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
+      autoSaveTimer.current = setTimeout(() => {
+        setIsAutoSaving(true);
+        try {
+          localStorage.setItem('cv-data', JSON.stringify(data));
+          const now = new Date();
+          localStorage.setItem('cv-last-saved', now.toISOString());
+          setLastSaved(now);
+          setUnsavedChanges(false);
+        } catch (error) {
+          console.error('Auto-save failed:', error);
+        } finally {
+          setIsAutoSaving(false);
+        }
+      }, 2000);
+    },
+    [autoSaveEnabled]
+  );
 
   const handleDataChange = useCallback(
     (newData: CVData) => {
@@ -106,8 +136,9 @@ export const CV = () => {
     setIsSaving(true);
     try {
       localStorage.setItem('cv-data', JSON.stringify(cvData));
-      localStorage.setItem('cv-last-saved', new Date().toISOString());
-      setLastSaved(new Date());
+      const now = new Date();
+      localStorage.setItem('cv-last-saved', now.toISOString());
+      setLastSaved(now);
       setUnsavedChanges(false);
       message.success('CV saved successfully!');
     } catch (error) {
@@ -123,7 +154,6 @@ export const CV = () => {
       message.error('Preview not available for PDF export');
       return;
     }
-
     setIsSaving(true);
     try {
       const element = previewRef.current;
@@ -131,41 +161,18 @@ export const CV = () => {
         /\s+/g,
         '_'
       )}_CV.pdf`;
-
       const opt = {
         margin: [10, 10, 10, 10],
         filename: fileName,
-        image: {
-          type: 'jpeg',
-          quality: 0.98,
-        },
-        html2canvas: {
-          scale: 2,
-          useCORS: true,
-          letterRendering: true,
-          logging: false,
-          allowTaint: true,
-          scrollY: 0,
-        },
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: { scale: 2, useCORS: true },
         jsPDF: {
           unit: 'mm',
           format: 'a4',
-          orientation: 'portrait',
-          compress: true,
+          orientation: 'portrait' as 'portrait' | 'landscape',
         },
-        pagebreak: {
-          mode: ['avoid-all', 'css', 'legacy'],
-          before: '.page-break-before',
-          after: '.page-break-after',
-        },
-        enableLinks: true,
       };
-
-      await html2pdf()
-        .set(opt as any)
-        .from(element)
-        .save();
-
+      await html2pdf().set(opt).from(element).save();
       message.success(`PDF "${fileName}" downloaded successfully!`);
     } catch (error) {
       console.error('Error generating PDF:', error);
@@ -175,49 +182,31 @@ export const CV = () => {
     }
   }, [cvData.personalInfo.fullName]);
 
-  const togglePreviewMode = () => {
-    setPreviewMode(!previewMode);
-  };
+  const togglePreviewMode = useCallback(() => setPreviewMode((p) => !p), []);
 
-  const formatLastSaved = (date: Date | null) => {
-    if (!date) return 'Never';
-    const now = new Date();
-    const diff = now.getTime() - date.getTime();
-
-    if (diff < 60000) return 'Just now';
-    if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`;
-    if (diff < 86400000) return `${Math.floor(diff / 3600000)}h ago`;
-    return date.toLocaleDateString();
-  };
-
-  // Cleanup auto-save timer on unmount
   useEffect(() => {
     return () => {
-      if (autoSaveTimer.current) {
-        clearTimeout(autoSaveTimer.current);
-      }
+      if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
     };
   }, []);
 
-  return (
-    <DashboardLayout
-      rightNavContent={
-        <div className="flex items-center gap-3">
-          {/* Save Status Indicator */}
+  const rightNavContent = useMemo(
+    () => (
+      <div className="flex items-center gap-3">
+        {autoSaveEnabled && (
           <div className="hidden md:flex items-center gap-2 text-sm text-gray-600">
-            {isAutoSaving && (
+            {isAutoSaving ? (
               <>
                 <RefreshCw className="w-4 h-4 animate-spin" />
                 <span>Saving...</span>
               </>
-            )}
-            {!isAutoSaving && (
+            ) : (
               <>
                 <div
                   className={`w-2 h-2 rounded-full ${
                     unsavedChanges ? 'bg-yellow-500' : 'bg-green-500'
                   }`}
-                ></div>
+                />
                 <span>
                   {unsavedChanges
                     ? 'Unsaved changes'
@@ -226,8 +215,9 @@ export const CV = () => {
               </>
             )}
           </div>
+        )}
 
-          {/* Preview Mode Toggle */}
+        {realTimePreviewEnabled && (
           <Tooltip title={previewMode ? 'Show editor' : 'Preview only'}>
             <button
               onClick={togglePreviewMode}
@@ -240,48 +230,56 @@ export const CV = () => {
               )}
             </button>
           </Tooltip>
+        )}
 
-          {/* Manual Save Button */}
-          <Tooltip title="Save manually">
-            <button
-              onClick={handleManualSave}
-              disabled={isSaving || isAutoSaving}
-              className="flex items-center justify-center w-10 h-10 rounded-lg bg-blue-100 hover:bg-blue-200 text-blue-700 transition-colors disabled:opacity-50"
-            >
-              <Save className="w-4 h-4" />
-            </button>
-          </Tooltip>
-
-          {/* Export PDF Button */}
+        <Tooltip title="Save manually">
           <button
-            onClick={handleExportAsPDF}
-            disabled={isSaving}
-            className="group inline-flex items-center justify-center leading-none no-underline border-none cursor-pointer rounded-xl font-semibold text-white whitespace-nowrap overflow-hidden text-ellipsis transition-all duration-300 py-3 px-6 gap-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 active:scale-[0.98] shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed"
+            onClick={handleManualSave}
+            disabled={isSaving || isAutoSaving}
+            className="flex items-center justify-center w-10 h-10 rounded-lg bg-blue-100 hover:bg-blue-200 text-blue-700 transition-colors disabled:opacity-50"
           >
-            {isSaving ? (
-              <>
-                <Loader2 className="animate-spin h-4 w-4" />
-                <span>Exporting...</span>
-              </>
-            ) : (
-              <>
-                <span className="hidden sm:inline">Export PDF</span>
-                <span className="sm:hidden">PDF</span>
-                <span className="flex-shrink-0 w-6 h-6 relative grid place-items-center overflow-hidden rounded-full bg-white/20 backdrop-blur-sm">
-                  <ArrowDownToLine
-                    className="absolute transform transition-transform duration-300 group-hover:translate-x-[150%] group-hover:-translate-y-[150%]"
-                    size={14}
-                  />
-                  <ArrowDownToLine
-                    className="absolute transform transition-transform duration-300 delay-100 translate-x-[-150%] translate-y-[150%] group-hover:translate-x-0 group-hover:translate-y-0"
-                    size={14}
-                  />
-                </span>
-              </>
-            )}
+            <Save className="w-4 h-4" />
           </button>
-        </div>
-      }
+        </Tooltip>
+
+        <button
+          onClick={handleExportAsPDF}
+          disabled={isSaving}
+          className="group inline-flex items-center justify-center leading-none no-underline border-none cursor-pointer rounded-xl font-semibold text-white whitespace-nowrap overflow-hidden text-ellipsis transition-all duration-300 py-3 px-6 gap-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 active:scale-[0.98] shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {isSaving ? (
+            <>
+              <Loader2 className="animate-spin h-4 w-4" />
+              <span>Exporting...</span>
+            </>
+          ) : (
+            <>
+              {/* ICON ADDED HERE */}
+              <ArrowDownToLine className="h-4 w-4" />
+              <span className="hidden sm:inline">Export PDF</span>
+              <span className="sm:hidden">PDF</span>
+            </>
+          )}
+        </button>
+      </div>
+    ),
+    [
+      autoSaveEnabled,
+      isAutoSaving,
+      unsavedChanges,
+      lastSaved,
+      realTimePreviewEnabled,
+      previewMode,
+      togglePreviewMode,
+      handleManualSave,
+      isSaving,
+      handleExportAsPDF,
+    ]
+  );
+
+  return (
+    <DashboardLayout
+      rightNavContent={rightNavContent}
       sidebarConfig={{
         activeSection,
         onSectionChange: setActiveSection,
@@ -289,12 +287,17 @@ export const CV = () => {
     >
       <div
         className={`transition-all duration-300 ${
-          previewMode ? 'grid-cols-1' : 'grid grid-cols-1 lg:grid-cols-2'
+          !previewMode && realTimePreviewEnabled
+            ? 'grid grid-cols-1 lg:grid-cols-2'
+            : 'block'
         } gap-6 md:gap-8`}
       >
-        {/* Forms Section */}
         {!previewMode && (
-          <div className="space-y-6">
+          <div
+            className={`space-y-6 ${
+              !realTimePreviewEnabled && 'max-w-4xl mx-auto w-full'
+            }`}
+          >
             <div className="bg-white rounded-2xl shadow-lg p-6 border border-gray-100 transition-all duration-300 hover:shadow-xl">
               <div className="mb-6">
                 <div className="flex items-center justify-between mb-2">
@@ -304,12 +307,6 @@ export const CV = () => {
                     </span>
                     {activeSection}
                   </h2>
-                  {unsavedChanges && (
-                    <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
-                      <span className="w-1.5 h-1.5 rounded-full bg-yellow-500 mr-1"></span>
-                      Unsaved
-                    </span>
-                  )}
                 </div>
                 <p className="text-gray-500 text-sm ml-13">
                   Fill in your {activeSection.toLowerCase()} details
@@ -324,46 +321,25 @@ export const CV = () => {
           </div>
         )}
 
-        {/* Preview Section */}
-        <div
-          className={`${previewMode ? 'max-w-4xl mx-auto' : 'lg:sticky h-fit'}`}
-          id="cv-preview-mobile"
-        >
-          <div className="bg-white rounded-2xl shadow-lg p-6 border border-gray-100 transition-all duration-300 hover:shadow-xl">
-            <div className="flex justify-between items-center mb-6">
-              <h2 className="text-2xl font-bold text-gray-800">CV Preview</h2>
-              <div className="flex items-center gap-3">
-                <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-green-100 text-green-800">
-                  <span className="w-2 h-2 rounded-full bg-green-500 mr-2 animate-pulse"></span>
-                  Real-time
-                </span>
-                {previewMode && (
-                  <button
-                    onClick={togglePreviewMode}
-                    className="lg:hidden px-3 py-1 rounded-lg bg-blue-100 text-blue-700 text-sm font-medium hover:bg-blue-200 transition-colors"
-                  >
-                    Show Editor
-                  </button>
-                )}
+        {realTimePreviewEnabled && (
+          <div
+            className={`${
+              previewMode ? 'max-w-4xl mx-auto' : 'lg:sticky h-fit top-8'
+            }`}
+            id="cv-preview-mobile"
+          >
+            <div className="bg-white rounded-2xl shadow-lg p-6 border border-gray-100 transition-all duration-300 hover:shadow-xl">
+              <div className="flex justify-between items-center mb-6">
+                <h2 className="text-2xl font-bold text-gray-800">CV Preview</h2>
+              </div>
+              <div ref={previewRef} className="p-4">
+                <CVPreviews data={cvData} />
               </div>
             </div>
-            <div
-              ref={previewRef}
-              className={`transition-all duration-300 ${
-                previewMode ? 'transform scale-100' : ''
-              }`}
-              style={{
-                transformOrigin: 'top center',
-                minHeight: previewMode ? '100vh' : 'auto',
-              }}
-            >
-              <CVPreviews data={cvData} />
-            </div>
           </div>
-        </div>
+        )}
       </div>
 
-      {/* Floating Action Buttons */}
       <FloatButton.Group
         trigger="click"
         type="primary"
@@ -379,16 +355,19 @@ export const CV = () => {
         <Tooltip title="Manual Save" placement="left">
           <FloatButton icon={<Save size={16} />} onClick={handleManualSave} />
         </Tooltip>
-        <Tooltip
-          title={previewMode ? 'Show Editor' : 'Preview Only'}
-          placement="left"
-        >
-          <FloatButton
-            className="lg:hidden"
-            icon={previewMode ? <Eye size={16} /> : <EyeOff size={16} />}
-            onClick={togglePreviewMode}
-          />
-        </Tooltip>
+
+        {realTimePreviewEnabled && (
+          <Tooltip
+            title={previewMode ? 'Show Editor' : 'Preview Only'}
+            placement="left"
+          >
+            <FloatButton
+              className="lg:hidden"
+              icon={previewMode ? <Eye size={16} /> : <EyeOff size={16} />}
+              onClick={togglePreviewMode}
+            />
+          </Tooltip>
+        )}
       </FloatButton.Group>
     </DashboardLayout>
   );
