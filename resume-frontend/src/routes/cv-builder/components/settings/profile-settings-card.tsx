@@ -1,15 +1,8 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Card, Avatar, Button, Input, Upload, message } from 'antd';
-import { UserOutlined, LoadingOutlined } from '@ant-design/icons';
+import { Card, Button, Input, Upload, message } from 'antd';
 import { supabase } from 'core/lib/supabaseClient';
-import type { UploadChangeParam } from 'antd/es/upload';
-import type { RcFile } from 'antd/es/upload/interface';
 
-const getBase64 = (img: RcFile, callback: (url: string) => void) => {
-  const reader = new FileReader();
-  reader.addEventListener('load', () => callback(reader.result as string));
-  reader.readAsDataURL(img);
-};
+import ProfilePictureUploader from './profile-picture-uploader';
 
 interface ProfileSettingsCardProps {
   initialUser: any;
@@ -24,11 +17,12 @@ const ProfileSettingsCard = ({
 }: ProfileSettingsCardProps) => {
   const [editableUsername, setEditableUsername] = useState<string>('');
   const [displayImageUrl, setDisplayImageUrl] = useState<string | undefined>();
-  const [uploading, setUploading] = useState(false);
   const [uploadedStorageUrl, setUploadedStorageUrl] = useState<string | null>(
     null
   );
   const [isSaving, setIsSaving] = useState(false);
+  const [isImageUploadingInternal, setIsImageUploadingInternal] =
+    useState(false);
 
   useEffect(() => {
     if (initialUser) {
@@ -37,67 +31,9 @@ const ProfileSettingsCard = ({
     }
   }, [initialUser]);
 
-  const handleImageUpload = (info: UploadChangeParam) => {
-    if (info.file.status === 'uploading') {
-      setUploading(true);
-      return;
-    }
-    if (info.file.status === 'done') {
-      getBase64(info.file.originFileObj as RcFile, async (url) => {
-        setDisplayImageUrl(url);
-        setUploading(true);
-
-        const file = info.file.originFileObj as RcFile;
-        const userId = initialUser?.id;
-        if (!userId) {
-          message.error('User not authenticated. Please log in again.');
-          setUploading(false);
-          setDisplayImageUrl(initialUser?.user_metadata?.avatar_url);
-          return;
-        }
-        const fileName = `${userId}/${Date.now()}-${file.name}`;
-
-        try {
-          const { error: uploadError } = await supabase.storage
-            .from('avatars')
-            .upload(fileName, file, { cacheControl: '3600', upsert: true });
-
-          if (uploadError) {
-            console.error(
-              'Supabase Storage Upload Error:',
-              uploadError.message,
-              uploadError
-            );
-            message.error('Failed to upload image: ' + uploadError.message);
-            setUploading(false);
-            setDisplayImageUrl(initialUser?.user_metadata?.avatar_url);
-            return;
-          }
-
-          const { data: publicURLData } = supabase.storage
-            .from('avatars')
-            .getPublicUrl(fileName);
-
-          if (!publicURLData || !publicURLData.publicUrl) {
-            console.error('Failed to get public URL for uploaded image.');
-            message.error('Failed to get public URL for image.');
-            setUploading(false);
-            setDisplayImageUrl(initialUser?.user_metadata?.avatar_url);
-            return;
-          }
-          setUploadedStorageUrl(publicURLData.publicUrl);
-          message.success(
-            'Image uploaded successfully! Click "Save Changes" to update your profile.'
-          );
-        } catch (error: any) {
-          console.error('General upload error:', error.message);
-          message.error('An unexpected error occurred during image upload.');
-          setDisplayImageUrl(initialUser?.user_metadata?.avatar_url);
-        } finally {
-          setUploading(false);
-        }
-      });
-    }
+  const handleImageUploadSuccess = (publicUrl: string) => {
+    setUploadedStorageUrl(publicUrl);
+    setDisplayImageUrl(publicUrl);
   };
 
   const handleSaveChanges = async () => {
@@ -151,37 +87,18 @@ const ProfileSettingsCard = ({
     return usernameChanged || avatarChanged;
   }, [editableUsername, uploadedStorageUrl, initialUser]);
 
-  const uploadButton = (
-    <div>
-      {uploading ? <LoadingOutlined /> : <UserOutlined />}
-      <div style={{ marginTop: 8 }}>{uploading ? 'Uploading' : 'Change'}</div>
-    </div>
-  );
-
   return (
     <Card
       title="Profile Information"
       className="shadow-md border border-gray-100 transition-all duration-300 hover:shadow-lg"
     >
       <div className="flex items-center space-x-6 mb-8">
-        <Upload
-          name="avatar"
-          listType="picture-circle"
-          className="avatar-uploader"
-          showUploadList={false}
-          customRequest={({ onSuccess }) => {
-            setTimeout(() => {
-              if (onSuccess) onSuccess('ok');
-            }, 0);
-          }}
-          onChange={handleImageUpload}
-        >
-          {displayImageUrl && !uploading ? (
-            <Avatar size={100} src={displayImageUrl} />
-          ) : (
-            uploadButton
-          )}
-        </Upload>
+        <ProfilePictureUploader
+          initialImageUrl={displayImageUrl}
+          userId={initialUser?.id} // Pass the user ID for unique storage paths
+          onUploadSuccess={handleImageUploadSuccess}
+          loading={isImageUploadingInternal} // Pass internal loading state to uploader
+        />
         <div>
           <h2 className="text-2xl font-semibold text-gray-800">
             {editableUsername || initialUser?.email?.split('@')[0]}
@@ -247,9 +164,9 @@ const ProfileSettingsCard = ({
           <Button
             type="primary"
             onClick={handleSaveChanges}
-            loading={isSaving || uploading}
+            loading={isSaving || isImageUploadingInternal} // Disable save button if image is being uploaded
             className="bg-blue-600 hover:bg-blue-700"
-            disabled={!hasChanges || isSaving || uploading}
+            disabled={!hasChanges || isSaving || isImageUploadingInternal}
           >
             {isSaving ? 'Saving...' : 'Save Changes'}
           </Button>
