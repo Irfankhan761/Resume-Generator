@@ -1,5 +1,5 @@
-// src/components/ProfilePictureUploader.tsx (or wherever you prefer to place it)
-import React, { useState, useCallback, useRef } from 'react';
+// src/components/ProfilePictureUploader.tsx
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Upload,
   message,
@@ -20,18 +20,16 @@ import {
 } from '@ant-design/icons';
 import { Avatar } from 'antd';
 import Cropper from 'react-easy-crop';
-import type { UploadChangeParam } from 'antd/es/upload';
 import type { RcFile } from 'antd/es/upload/interface';
-// Ensure this path is correct for your Supabase client
 import { supabase } from 'core/lib/supabaseClient';
 
 const { Text } = Typography;
 
 interface ProfilePictureUploaderProps {
   initialImageUrl?: string;
-  userId: string; // This needs to be provided to uniquely identify user's images in storage
+  userId: string;
   onUploadSuccess: (publicUrl: string | null) => void;
-  loading: boolean; // Overall loading state for the uploader's internal operations
+  loading: boolean;
   onUploadStart?: () => void;
   onUploadEnd?: () => void;
 }
@@ -51,6 +49,16 @@ const createImage = (url: string): Promise<HTMLImageElement> =>
     image.src = url;
   });
 
+const rotateSize = (width: number, height: number, rotation: number) => {
+  const rotRad = (rotation * Math.PI) / 180;
+  return {
+    width:
+      Math.abs(width * Math.cos(rotRad)) + Math.abs(height * Math.sin(rotRad)),
+    height:
+      Math.abs(width * Math.sin(rotRad)) + Math.abs(height * Math.cos(rotRad)),
+  };
+};
+
 const getCroppedImg = async (
   imageSrc: string,
   croppedAreaPixels: any,
@@ -60,12 +68,9 @@ const getCroppedImg = async (
   const canvas = document.createElement('canvas');
   const ctx = canvas.getContext('2d');
 
-  if (!ctx) {
-    return null;
-  }
+  if (!ctx) return null;
 
   const rotRad = (rotation * Math.PI) / 180;
-
   const { width: bBoxWidth, height: bBoxHeight } = rotateSize(
     image.width,
     image.height,
@@ -81,6 +86,7 @@ const getCroppedImg = async (
 
   ctx.drawImage(image, 0, 0);
 
+  // Extract the cropped area
   const data = ctx.getImageData(
     croppedAreaPixels.x,
     croppedAreaPixels.y,
@@ -88,9 +94,9 @@ const getCroppedImg = async (
     croppedAreaPixels.height
   );
 
+  // Resize canvas to final crop size and put image data
   canvas.width = croppedAreaPixels.width;
   canvas.height = croppedAreaPixels.height;
-
   ctx.putImageData(data, 0, 0);
 
   return new Promise<Blob | null>((resolve) => {
@@ -104,21 +110,41 @@ const getCroppedImg = async (
   });
 };
 
-const rotateSize = (width: number, height: number, rotation: number) => {
-  const rotRad = (rotation * Math.PI) / 180;
-  return {
-    width:
-      Math.abs(width * Math.cos(rotRad)) + Math.abs(height * Math.sin(rotRad)),
-    height:
-      Math.abs(width * Math.sin(rotRad)) + Math.abs(height * Math.cos(rotRad)),
-  };
+// Helper to extract file path for supabase remove()
+const extractFilePathFromUrl = (
+  publicUrl: string,
+  bucketName: string
+): string | null => {
+  try {
+    const url = new URL(publicUrl);
+    const pathSegments = url.pathname.split('/');
+    const bucketIndex = pathSegments.findIndex(
+      (segment) => segment === bucketName
+    );
+
+    if (bucketIndex !== -1) {
+      return pathSegments.slice(bucketIndex + 1).join('/');
+    }
+
+    const publicIndex = pathSegments.findIndex(
+      (segment) => segment === 'public'
+    );
+    if (publicIndex !== -1 && pathSegments[publicIndex + 1] === bucketName) {
+      return pathSegments.slice(publicIndex + 2).join('/');
+    }
+
+    return null;
+  } catch (error) {
+    console.error('Error parsing URL:', error);
+    return null;
+  }
 };
 
 const CvProfilePictureUploader: React.FC<ProfilePictureUploaderProps> = ({
   initialImageUrl,
   userId,
   onUploadSuccess,
-  loading, // This `loading` prop now specifically refers to the internal operations of this component
+  loading,
   onUploadStart,
   onUploadEnd,
 }) => {
@@ -130,7 +156,14 @@ const CvProfilePictureUploader: React.FC<ProfilePictureUploaderProps> = ({
   const [croppedAreaPixels, setCroppedAreaPixels] = useState<any>(null);
   const fileRef = useRef<RcFile | null>(null);
   const [isHovered, setIsHovered] = useState(false);
-  const [internalLoading, setInternalLoading] = useState(false); // New internal loading state
+  const [internalLoading, setInternalLoading] = useState(false);
+  const [currentImageUrl, setCurrentImageUrl] = useState<string | undefined>(
+    initialImageUrl
+  );
+
+  useEffect(() => {
+    setCurrentImageUrl(initialImageUrl);
+  }, [initialImageUrl]);
 
   const resetCropperAdjustments = () => {
     setCrop({ x: 0, y: 0 });
@@ -149,25 +182,27 @@ const CvProfilePictureUploader: React.FC<ProfilePictureUploaderProps> = ({
     if (imageToCrop) {
       setCropperImageSrc(imageToCrop);
     } else {
-      // If no imageToCrop provided, it means we are uploading a new one, so clear existing
       setCropperImageSrc(null);
     }
     resetCropperAdjustments();
     setModalVisible(true);
   };
 
-  const handleFileChange = (info: UploadChangeParam) => {
-    if (info.file.status === 'done' || info.file.status === 'uploading') {
-      const file = info.file.originFileObj as RcFile;
+  // Use beforeUpload to intercept selected file and prevent auto-upload.
+  const handleBeforeUpload = (file: RcFile) => {
+    try {
       fileRef.current = file;
       getBase64(file, (url) => {
         setCropperImageSrc(url);
         resetCropperAdjustments();
         setModalVisible(true);
       });
-    } else if (info.file.status === 'error') {
-      message.error(`${info.file.name} file upload failed.`);
+    } catch (err) {
+      console.error('Error handling file before upload:', err);
+      message.error('Failed to read selected file.');
     }
+    // Returning false prevents antd from uploading the file automatically.
+    return false;
   };
 
   const onCropComplete = useCallback(
@@ -183,8 +218,8 @@ const CvProfilePictureUploader: React.FC<ProfilePictureUploaderProps> = ({
       return;
     }
 
-    setInternalLoading(true); // Start internal loading
-    onUploadStart?.(); // Notify parent of upload start
+    setInternalLoading(true);
+    onUploadStart?.();
     try {
       const croppedBlob = await getCroppedImg(
         cropperImageSrc,
@@ -198,7 +233,10 @@ const CvProfilePictureUploader: React.FC<ProfilePictureUploaderProps> = ({
       }
 
       const originalFileName = fileRef.current?.name || 'avatar.jpeg';
-      const fileName = `${userId}/${Date.now()}-${originalFileName}`; // Store in user-specific folder
+      const fileName = `${userId}/${Date.now()}-${originalFileName}`;
+
+      console.log('Uploading to Supabase as', fileName);
+
       const { error: uploadError } = await supabase.storage
         .from('avatars')
         .upload(fileName, croppedBlob, {
@@ -208,11 +246,7 @@ const CvProfilePictureUploader: React.FC<ProfilePictureUploaderProps> = ({
         });
 
       if (uploadError) {
-        console.error(
-          'Supabase Storage Upload Error:',
-          uploadError.message,
-          uploadError
-        );
+        console.error('Supabase Storage Upload Error:', uploadError);
         message.error('Failed to upload image: ' + uploadError.message);
         return;
       }
@@ -227,6 +261,7 @@ const CvProfilePictureUploader: React.FC<ProfilePictureUploaderProps> = ({
         return;
       }
 
+      setCurrentImageUrl(publicURLData.publicUrl);
       onUploadSuccess(publicURLData.publicUrl);
       message.success(
         'Image uploaded successfully! Click "Save Changes" to update your profile.'
@@ -234,11 +269,11 @@ const CvProfilePictureUploader: React.FC<ProfilePictureUploaderProps> = ({
       setModalVisible(false);
       resetCropperState();
     } catch (error: any) {
-      console.error('General upload error:', error.message);
+      console.error('General upload error:', error);
       message.error('An unexpected error occurred during image upload.');
     } finally {
-      setInternalLoading(false); // End internal loading
-      onUploadEnd?.(); // Notify parent of upload end
+      setInternalLoading(false);
+      onUploadEnd?.();
     }
   };
 
@@ -248,7 +283,7 @@ const CvProfilePictureUploader: React.FC<ProfilePictureUploaderProps> = ({
   };
 
   const handleRemovePicture = async () => {
-    if (!initialImageUrl) {
+    if (!currentImageUrl) {
       message.info('No profile picture to remove.');
       return;
     }
@@ -260,36 +295,34 @@ const CvProfilePictureUploader: React.FC<ProfilePictureUploaderProps> = ({
       okText: 'Remove',
       okType: 'danger',
       onOk: async () => {
-        setInternalLoading(true); // Start internal loading
-        onUploadStart?.(); // Notify parent of upload start
+        setInternalLoading(true);
+        onUploadStart?.();
         try {
-          const urlParts = initialImageUrl.split('/');
           const bucketName = 'avatars';
-          const filePathIndex = urlParts.findIndex(
-            (part) => part === bucketName
-          );
-          // Construct the path relative to the bucket
-          const filePath = urlParts.slice(filePathIndex + 1).join('/');
+          const filePath = extractFilePathFromUrl(currentImageUrl, bucketName);
 
           if (!filePath) {
+            console.error(
+              'Could not extract file path from URL:',
+              currentImageUrl
+            );
             message.error('Could not determine file path for deletion.');
             return;
           }
+
+          console.log('Attempting to delete file:', filePath);
 
           const { error: deleteError } = await supabase.storage
             .from(bucketName)
             .remove([filePath]);
 
           if (deleteError) {
-            console.error(
-              'Supabase Storage Deletion Error:',
-              deleteError.message,
-              deleteError
-            );
+            console.error('Supabase Storage Deletion Error:', deleteError);
             message.error('Failed to remove image: ' + deleteError.message);
             return;
           }
 
+          setCurrentImageUrl(undefined);
           onUploadSuccess(null);
           message.success(
             'Profile picture removed successfully! Click "Save Changes" to update your profile.'
@@ -297,18 +330,18 @@ const CvProfilePictureUploader: React.FC<ProfilePictureUploaderProps> = ({
           setModalVisible(false);
           resetCropperState();
         } catch (error: any) {
-          console.error('General removal error:', error.message);
+          console.error('General removal error:', error);
           message.error('An unexpected error occurred during image removal.');
         } finally {
-          setInternalLoading(false); // End internal loading
-          onUploadEnd?.(); // Notify parent of upload end
+          setInternalLoading(false);
+          onUploadEnd?.();
         }
       },
       okButtonProps: { loading: internalLoading },
     });
   };
 
-  const actualLoading = loading || internalLoading; // Combine external and internal loading
+  const actualLoading = loading || internalLoading;
 
   return (
     <>
@@ -319,14 +352,14 @@ const CvProfilePictureUploader: React.FC<ProfilePictureUploaderProps> = ({
           height: 100,
           cursor: actualLoading ? 'not-allowed' : 'pointer',
           borderRadius: '50%',
-          overflow: 'hidden', // Ensure hover effect stays within bounds
+          overflow: 'hidden',
         }}
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
-        onClick={() => !actualLoading && handleOpenModal(initialImageUrl)}
+        onClick={() => !actualLoading && handleOpenModal(currentImageUrl)}
       >
-        {initialImageUrl && !actualLoading ? (
-          <Avatar size={100} src={initialImageUrl} />
+        {currentImageUrl && !actualLoading ? (
+          <Avatar size={100} src={currentImageUrl} />
         ) : (
           <Avatar
             size={100}
@@ -335,7 +368,6 @@ const CvProfilePictureUploader: React.FC<ProfilePictureUploaderProps> = ({
           />
         )}
 
-        {/* Hover overlay and icon */}
         {isHovered && !actualLoading && (
           <div
             style={{
@@ -370,7 +402,7 @@ const CvProfilePictureUploader: React.FC<ProfilePictureUploaderProps> = ({
         maskClosable={!actualLoading}
         closable={!actualLoading}
         footer={[
-          initialImageUrl && (
+          currentImageUrl && (
             <Button
               key="remove"
               danger
@@ -386,8 +418,7 @@ const CvProfilePictureUploader: React.FC<ProfilePictureUploaderProps> = ({
             name="avatar-new-modal"
             showUploadList={false}
             accept="image/*"
-            beforeUpload={() => false} // Prevent default upload behavior
-            onChange={handleFileChange}
+            beforeUpload={handleBeforeUpload}
             disabled={actualLoading}
           >
             <Button disabled={actualLoading} icon={<UploadOutlined />}>

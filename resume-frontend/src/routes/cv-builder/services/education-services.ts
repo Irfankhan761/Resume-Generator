@@ -16,30 +16,41 @@ const toFrontendFormat = (item: any): Education => ({
 });
 
 // Helper to convert frontend format to database fields
-const toBackendFormat = (item: Education, userId: string) => ({
-  id: item.id.startsWith('temp-') ? undefined : item.id,
-  user_id: userId,
-  degree_title: item.degreeTitle,
-  majors: item.majors,
-  institute: item.institute,
-  gpa_value: item.gpaValue,
-  gpa_type: item.gpaType,
-  city: item.city,
-  start_date: item.startDate,
-  // Ensure endDate is null if they are currently studying
-  end_date: item.isCurrent ? null : item.endDate,
-  is_current: item.isCurrent,
-});
+const toBackendFormat = (item: Education, userId: string) => {
+  const backendItem: any = {
+    user_id: userId,
+    degree_title: item.degreeTitle,
+    majors: item.majors || null,
+    institute: item.institute || null,
+    gpa_value: item.gpaValue || null,
+    gpa_type: item.gpaType || null,
+    city: item.city || null,
+    start_date: item.startDate || null,
+    end_date: item.isCurrent ? null : item.endDate || null,
+    is_current: item.isCurrent || false,
+  };
+
+  // Only include ID if it's not a temporary ID
+  if (item.id && !item.id.startsWith('temp-')) {
+    backendItem.id = item.id;
+  }
+
+  return backendItem;
+};
 
 export const educationService = {
   async loadEducation(): Promise<{ error: any; data: Education[] | null }> {
     try {
       const {
         data: { user },
+        error: userError,
       } = await supabase.auth.getUser();
-      if (!user) return { error: 'User not authenticated', data: null };
 
-      // Sort by current first, then by end date, so most recent is at the top
+      if (userError || !user) {
+        console.error('User authentication error:', userError);
+        return { error: 'User not authenticated', data: null };
+      }
+
       const { data, error } = await supabase
         .from('education')
         .select('*')
@@ -47,9 +58,14 @@ export const educationService = {
         .order('is_current', { ascending: false })
         .order('end_date', { ascending: false, nullsFirst: false });
 
-      if (error) return { error, data: null };
-      return { error: null, data: data.map(toFrontendFormat) };
+      if (error) {
+        console.error('Database error loading education:', error);
+        return { error, data: null };
+      }
+
+      return { error: null, data: data ? data.map(toFrontendFormat) : [] };
     } catch (error) {
+      console.error('Unexpected error in loadEducation:', error);
       return { error, data: null };
     }
   },
@@ -58,24 +74,50 @@ export const educationService = {
     educationItem: Education
   ): Promise<{ error: any; data: any }> {
     try {
+      console.log('Saving education item:', educationItem);
+
       const {
         data: { user },
+        error: userError,
       } = await supabase.auth.getUser();
-      if (!user) throw new Error('User not authenticated');
+
+      if (userError || !user) {
+        console.error('User authentication error:', userError);
+        return { error: 'User not authenticated', data: null };
+      }
 
       const formattedItem = toBackendFormat(educationItem, user.id);
+      console.log('Formatted item for database:', formattedItem);
 
-      const { data, error } = await supabase
-        .from('education')
-        .upsert([formattedItem], { onConflict: 'id', defaultToNull: false })
-        .select()
-        .single();
+      let result;
+
+      // Check if this is an update (has existing ID) or insert (new record)
+      if (educationItem.id && !educationItem.id.startsWith('temp-')) {
+        // Update existing record
+        result = await supabase
+          .from('education')
+          .update(formattedItem)
+          .eq('id', educationItem.id)
+          .eq('user_id', user.id)
+          .select()
+          .single();
+      } else {
+        // Insert new record
+        result = await supabase
+          .from('education')
+          .insert([formattedItem])
+          .select()
+          .single();
+      }
+
+      const { data, error } = result;
 
       if (error) {
-        console.error('Error upserting education:', error);
+        console.error('Database error saving education:', error);
         return { error, data: null };
       }
 
+      console.log('Successfully saved education:', data);
       return { error: null, data: toFrontendFormat(data) };
     } catch (error) {
       console.error('Unexpected error in saveEducation:', error);
@@ -87,8 +129,13 @@ export const educationService = {
     try {
       const {
         data: { user },
+        error: userError,
       } = await supabase.auth.getUser();
-      if (!user) throw new Error('User not authenticated');
+
+      if (userError || !user) {
+        console.error('User authentication error:', userError);
+        return { error: 'User not authenticated' };
+      }
 
       const { error } = await supabase
         .from('education')
@@ -97,7 +144,7 @@ export const educationService = {
         .eq('user_id', user.id);
 
       if (error) {
-        console.error('Error deleting education:', error);
+        console.error('Database error deleting education:', error);
         return { error };
       }
 

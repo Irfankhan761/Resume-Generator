@@ -1,4 +1,5 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+// src/components/personal-info-form/PersonalInfoForm.tsx
+import React, { useCallback, useEffect, useRef, useState, memo } from 'react';
 import {
   Card,
   Form,
@@ -32,9 +33,11 @@ import CvProfilePictureUploader from './cv-profile-picture';
 
 const { Title, Text } = Typography;
 
+type PersonalInfoData = PersonalInfo & { profileImage?: string };
+
 interface PersonalInfoFormProps {
-  data: PersonalInfo & { profileImage?: string };
-  onChange: (data: PersonalInfo & { profileImage?: string }) => void;
+  data: PersonalInfoData;
+  onChange: (data: PersonalInfoData) => void;
   onSave?: () => void;
 }
 
@@ -45,17 +48,16 @@ interface SectionVisibility {
   links: boolean;
 }
 
-export const PersonalInfoForm: React.FC<PersonalInfoFormProps> = ({
+const PersonalInfoFormComponent: React.FC<PersonalInfoFormProps> = ({
   data,
   onChange,
   onSave,
 }) => {
-  const [form] = Form.useForm();
+  const [form] = Form.useForm<PersonalInfoData>();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [isUploadingProfileImage, setIsUploadingProfileImage] = useState(false);
   const [isModalVisible, setIsModalVisible] = useState(false);
-
   const [visibility, setVisibility] = useState<SectionVisibility>({
     jobTitle: false,
     location: false,
@@ -63,60 +65,22 @@ export const PersonalInfoForm: React.FC<PersonalInfoFormProps> = ({
     links: false,
   });
 
-  const hasLoaded = useRef(false);
+  const [currentProfileImage, setCurrentProfileImage] = useState<
+    string | undefined
+  >(data.profileImage);
 
-  const handleValuesChange = useCallback(
-    (_: any, allValues: PersonalInfo) => {
-      if (hasLoaded.current) {
-        onChange({ ...allValues, profileImage: data.profileImage });
-      }
-    },
-    [onChange, data.profileImage]
-  );
+  const isMounted = useRef(false);
+  const onChangeRef = useRef(onChange);
+  const onSaveRef = useRef(onSave);
 
-  const handleProfileImageUploadSuccess = useCallback(
-    (publicUrl: string | null) => {
-      const updatedData = { ...data, profileImage: publicUrl || undefined };
-      onChange(updatedData);
-      form.setFieldsValue({ profileImage: publicUrl });
-    },
-    [data, onChange, form]
-  );
+  useEffect(() => {
+    onChangeRef.current = onChange;
+    onSaveRef.current = onSave;
+  }, [onChange, onSave]);
 
-  const handleSave = async () => {
-    try {
-      setSaving(true);
-      const formData = await form.validateFields();
-
-      const normalizedData: PersonalInfo & { profileImage?: string } = {
-        ...formData,
-        jobTitle: visibility.jobTitle ? formData.jobTitle || '' : '',
-        location: visibility.location ? formData.location || '' : '',
-        summary: visibility.summary ? formData.summary || '' : '',
-        website: visibility.links ? formData.website || '' : '',
-        linkedin: visibility.links ? formData.linkedin || '' : '',
-        github: visibility.links ? formData.github || '' : '',
-        profileImage: data.profileImage,
-      };
-
-      const { error } = await personalInfoService.savePersonalInfo(
-        normalizedData
-      );
-
-      if (error) {
-        message.error('Failed to save personal information.');
-        return;
-      }
-
-      message.success('Personal information saved successfully!');
-      onSave?.();
-    } catch (error) {
-      console.error('Save error:', error);
-      message.error('Please complete all required fields before saving.');
-    } finally {
-      setSaving(false);
-    }
-  };
+  useEffect(() => {
+    setCurrentProfileImage(data.profileImage);
+  }, [data.profileImage]);
 
   const loadPersonalInfo = useCallback(async () => {
     try {
@@ -124,37 +88,147 @@ export const PersonalInfoForm: React.FC<PersonalInfoFormProps> = ({
         await personalInfoService.loadPersonalInfo();
 
       if (error && (error as any).code !== 'PGRST116') {
-        message.error('Failed to load your information.');
-      } else if (savedData) {
-        form.setFieldsValue(savedData);
-        onChange(savedData);
-        setVisibility({
-          jobTitle: !!savedData.jobTitle,
-          location: !!savedData.location,
-          summary: !!savedData.summary,
-          links: !!(
-            savedData.website ||
-            savedData.linkedin ||
-            savedData.github
-          ),
-        });
-      } else {
-        form.setFieldsValue(data);
+        throw new Error('Failed to load your information.');
       }
+
+      const initialData = savedData || data;
+      form.setFieldsValue(initialData);
+      setCurrentProfileImage(initialData.profileImage);
+      onChangeRef.current(initialData);
+      setVisibility({
+        jobTitle: !!initialData.jobTitle,
+        location: !!initialData.location,
+        summary: !!initialData.summary,
+        links: !!(
+          initialData.website ||
+          initialData.linkedin ||
+          initialData.github
+        ),
+      });
     } catch (err) {
-      console.error('Unexpected error during load:', err);
-      message.error('An unexpected error occurred while loading your data.');
+      message.error(
+        err instanceof Error ? err.message : 'An unexpected error occurred.'
+      );
     } finally {
       setLoading(false);
-      hasLoaded.current = true;
+      isMounted.current = true;
     }
-  }, [form, onChange, data]);
+  }, [form, data]);
 
   useEffect(() => {
     loadPersonalInfo();
-  }, [loadPersonalInfo]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-  const handleModalOk = () => {
+  const handleValuesChange = useCallback(() => {
+    if (isMounted.current) {
+      const allValues = form.getFieldsValue();
+      const updatedData = {
+        ...allValues,
+        profileImage: currentProfileImage,
+      };
+      onChangeRef.current(updatedData);
+    }
+  }, [form, currentProfileImage]);
+
+  /**
+   * This handler persists only the profile image right away so reloads
+   * don't bring back the previous value.
+   *
+   * It now surfaces the actual error message from the service (if any),
+   * and logs the full error to console for debugging.
+   */
+  const handleProfileImageUploadSuccess = useCallback(
+    async (publicUrl: string | null) => {
+      // Update immediate UI state
+      const newProfileImage = publicUrl || undefined;
+      setCurrentProfileImage(newProfileImage);
+
+      // Update the form data and notify parent
+      const formData = form.getFieldsValue();
+      const updatedData = {
+        ...formData,
+        profileImage: newProfileImage,
+      };
+      onChangeRef.current(updatedData);
+
+      // Persist immediately so reload doesn't restore the old URL
+      setSaving(true);
+      try {
+        const { error } = await personalInfoService.updateProfileImage(
+          publicUrl
+        );
+
+        if (error) {
+          // If Supabase provides a message, show it; otherwise stringify the error
+          const pretty =
+            (error &&
+              (error.message || error.error || JSON.stringify(error))) ||
+            'Unknown error';
+          console.error('Failed to persist profile image change:', error);
+          message.error(`Failed to persist profile image change: ${pretty}`);
+        } else {
+          if (publicUrl) {
+            message.success('Profile picture saved.');
+          } else {
+            message.success('Profile picture removed.');
+          }
+        }
+      } catch (err) {
+        console.error('Unexpected error saving profile image change:', err);
+        message.error(
+          err instanceof Error
+            ? `Failed to persist profile image change: ${err.message}`
+            : 'Failed to persist profile image change (unknown error).'
+        );
+      } finally {
+        setSaving(false);
+      }
+
+      console.log('Profile image updated:', newProfileImage);
+    },
+    [form]
+  );
+
+  const handleSave = useCallback(async () => {
+    try {
+      const formData = await form.validateFields();
+      setSaving(true);
+
+      const normalizedData: PersonalInfoData = {
+        ...formData,
+        jobTitle: visibility.jobTitle ? formData.jobTitle || '' : '',
+        location: visibility.location ? formData.location || '' : '',
+        summary: visibility.summary ? formData.summary || '' : '',
+        website: visibility.links ? formData.website || '' : '',
+        linkedin: visibility.links ? formData.linkedin || '' : '',
+        github: visibility.links ? formData.github || '' : '',
+        profileImage: currentProfileImage,
+      };
+
+      const { error } = await personalInfoService.savePersonalInfo(
+        normalizedData
+      );
+      if (error) throw new Error('Failed to save personal information.');
+
+      message.success('Personal information saved successfully!');
+      onSaveRef.current?.();
+    } catch (error) {
+      if (error && (error as any).errorFields) {
+        message.error('Please complete all required fields before saving.');
+      } else {
+        message.error(
+          error instanceof Error
+            ? error.message
+            : 'An unknown save error occurred.'
+        );
+      }
+    } finally {
+      setSaving(false);
+    }
+  }, [form, visibility, currentProfileImage]);
+
+  const handleModalOk = useCallback(() => {
     const values = form.getFieldsValue();
     setVisibility({
       jobTitle: !!values.jobTitle,
@@ -163,19 +237,21 @@ export const PersonalInfoForm: React.FC<PersonalInfoFormProps> = ({
       links: !!(values.website || values.linkedin || values.github),
     });
     setIsModalVisible(false);
-  };
+  }, [form]);
 
-  const createRemoveHandler =
+  const createRemoveHandler = useCallback(
     (field: keyof SectionVisibility, relatedFields: (keyof PersonalInfo)[]) =>
-    () => {
-      setVisibility((prev) => ({ ...prev, [field]: false }));
-      const resetValues = relatedFields.reduce(
-        (acc, key) => ({ ...acc, [key]: '' }),
-        {}
-      );
-      form.setFieldsValue(resetValues);
-      onChange({ ...data, ...resetValues });
-    };
+      () => {
+        setVisibility((prev) => ({ ...prev, [field]: false }));
+        const resetValues = relatedFields.reduce(
+          (acc, key) => ({ ...acc, [key]: undefined }),
+          {}
+        );
+        form.setFieldsValue(resetValues);
+        handleValuesChange(); // Trigger parent update
+      },
+    [form, handleValuesChange]
+  );
 
   const currentUserId = 'user_abc_123';
 
@@ -213,10 +289,10 @@ export const PersonalInfoForm: React.FC<PersonalInfoFormProps> = ({
           <Col xs={24} md={8}>
             <Title level={5}>Profile Picture</Title>
             <CvProfilePictureUploader
-              initialImageUrl={data.profileImage}
+              initialImageUrl={currentProfileImage}
               userId={currentUserId}
               onUploadSuccess={handleProfileImageUploadSuccess}
-              loading={isUploadingProfileImage} // <-- THIS LINE IS THE FIX
+              loading={isUploadingProfileImage}
               onUploadStart={() => setIsUploadingProfileImage(true)}
               onUploadEnd={() => setIsUploadingProfileImage(false)}
             />
@@ -335,3 +411,5 @@ export const PersonalInfoForm: React.FC<PersonalInfoFormProps> = ({
     </Card>
   );
 };
+
+export const PersonalInfoForm = memo(PersonalInfoFormComponent);

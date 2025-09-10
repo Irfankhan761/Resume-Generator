@@ -139,39 +139,3 @@ export const resetPasswordForEmail = async (
     return { error: error as AuthError };
   }
 };
-
-export const deleteUserAccountDataAndSignOut = async (
-  userId: string
-): Promise<{ error: AuthError | null }> => {
-  try {
-    // If you have no user-specific tables to delete from,
-    // you can skip the data deletion step entirely and just sign out
-
-    // Only add deletion queries if you actually have tables with user data
-    // Example format (uncomment and modify if you have actual tables):
-    /*
-    const { error: someTableError } = await supabase
-      .from('your_actual_table_name')
-      .delete()
-      .eq('user_id', userId);
-
-    if (someTableError) {
-      console.error('Error deleting data:', someTableError.message);
-      return { error: someTableError as unknown as AuthError };
-    }
-    */
-
-    // Sign out the user
-    const { error: signOutError } = await supabase.auth.signOut();
-
-    if (signOutError) {
-      console.error('Error signing out:', signOutError.message);
-      return { error: signOutError as AuthError };
-    }
-
-    return { error: null };
-  } catch (error) {
-    console.error('Unexpected error during account deletion process:', error);
-    return { error: error as AuthError };
-  }
-};

@@ -33,13 +33,21 @@ export const EducationForm: React.FC<EducationFormProps> = ({ onChange }) => {
     try {
       if (showLoading) setLoading(true);
       const { data: savedData, error } = await educationService.loadEducation();
-      if (error && (error as any).code !== 'PGRST116') {
-        message.error('Failed to load education details.');
+
+      if (error) {
+        // Only show error if it's not a "no data found" error
+        if ((error as any).code !== 'PGRST116') {
+          console.error('Failed to load education details:', error);
+          message.error('Failed to load education details.');
+        }
       }
+
       const loadedList = savedData || [];
+      console.log('Loaded education list:', loadedList);
       setEducationList(loadedList);
       onChangeRef.current(loadedList);
     } catch (err) {
+      console.error('Error loading education:', err);
       message.error('Failed to load education details.');
     } finally {
       if (showLoading) setLoading(false);
@@ -55,7 +63,15 @@ export const EducationForm: React.FC<EducationFormProps> = ({ onChange }) => {
   const showAddModal = useCallback(() => {
     setEditingIndex(null);
     modalForm.resetFields();
-    modalForm.setFieldsValue({ gpaType: 'gpa', isCurrent: false });
+    modalForm.setFieldsValue({
+      gpaType: 'gpa',
+      isCurrent: false,
+      degreeTitle: '',
+      majors: '',
+      institute: '',
+      city: '',
+      gpaValue: null,
+    });
     setIsModalOpen(true);
   }, [modalForm]);
 
@@ -63,13 +79,17 @@ export const EducationForm: React.FC<EducationFormProps> = ({ onChange }) => {
     (index: number) => {
       setEditingIndex(index);
       const recordToEdit = educationList[index];
-      modalForm.setFieldsValue({
+
+      const formValues = {
         ...recordToEdit,
         startDate: recordToEdit.startDate
           ? dayjs(recordToEdit.startDate)
           : null,
         endDate: recordToEdit.endDate ? dayjs(recordToEdit.endDate) : null,
-      });
+      };
+
+      console.log('Setting form values for edit:', formValues);
+      modalForm.setFieldsValue(formValues);
       setIsModalOpen(true);
     },
     [educationList, modalForm]
@@ -78,7 +98,8 @@ export const EducationForm: React.FC<EducationFormProps> = ({ onChange }) => {
   const handleCancel = useCallback(() => {
     setIsModalOpen(false);
     setEditingIndex(null);
-  }, []);
+    modalForm.resetFields();
+  }, [modalForm]);
 
   const reloadData = useCallback(async () => {
     await loadData(false);
@@ -87,31 +108,60 @@ export const EducationForm: React.FC<EducationFormProps> = ({ onChange }) => {
   const handleModalSave = useCallback(
     async (continueAdding = false) => {
       try {
-        const modalValues = await modalForm.validateFields();
+        await modalForm.validateFields();
+        const modalValues = modalForm.getFieldsValue();
+
+        console.log('Form values before saving:', modalValues);
+
         setIsSaving(true);
+
+        // Determine the ID for the item
         const currentId =
           editingIndex !== null
             ? educationList[editingIndex].id
             : `temp-${Date.now()}`;
+
+        // Format the item for saving
         const itemToSave: Education = {
-          ...modalValues,
           id: currentId,
-          startDate: dayjs(modalValues.startDate).format('YYYY-MM-DD'),
+          degreeTitle: modalValues.degreeTitle?.trim() || '',
+          majors: modalValues.majors?.trim() || '',
+          institute: modalValues.institute?.trim() || '',
+          city: modalValues.city?.trim() || '',
+          gpaValue: modalValues.gpaValue || null,
+          gpaType: modalValues.gpaType || 'gpa',
+          startDate: modalValues.startDate
+            ? dayjs(modalValues.startDate).format('YYYY-MM-DD')
+            : '',
           endDate: modalValues.isCurrent
             ? undefined
-            : dayjs(modalValues.endDate).format('YYYY-MM-DD'),
-          isCurrent: modalValues.isCurrent || false,
+            : modalValues.endDate
+            ? dayjs(modalValues.endDate).format('YYYY-MM-DD')
+            : '',
+          isCurrent: Boolean(modalValues.isCurrent),
         };
 
-        const { error } = await educationService.saveEducation(itemToSave);
-        if (error) throw error;
+        console.log('Item to save:', itemToSave);
+
+        const { error, data } = await educationService.saveEducation(
+          itemToSave
+        );
+
+        if (error) {
+          console.error('Save error:', error);
+          throw new Error(error.message || 'Failed to save education');
+        }
+
+        console.log('Save successful:', data);
 
         message.success(
           `Education ${
             editingIndex !== null ? 'updated' : 'added'
           } successfully!`
         );
-        await reloadData(); // Use the stable reload function
+
+        // Reload data to reflect changes
+        await reloadData();
 
         if (continueAdding) {
           showAddModal();
@@ -119,7 +169,12 @@ export const EducationForm: React.FC<EducationFormProps> = ({ onChange }) => {
           handleCancel();
         }
       } catch (error) {
-        message.error('An error occurred while saving.');
+        console.error('Error in handleModalSave:', error);
+        message.error(
+          error instanceof Error
+            ? error.message
+            : 'An error occurred while saving.'
+        );
       } finally {
         setIsSaving(false);
       }
@@ -137,24 +192,39 @@ export const EducationForm: React.FC<EducationFormProps> = ({ onChange }) => {
   const handleDelete = useCallback(
     (indexToDelete: number) => {
       const itemToDelete = educationList[indexToDelete];
-      if (!itemToDelete?.id || itemToDelete.id.startsWith('temp-')) return;
+
+      if (!itemToDelete?.id || itemToDelete.id.startsWith('temp-')) {
+        message.warning('Cannot delete unsaved item');
+        return;
+      }
 
       confirm({
-        title: 'Are you sure you want to delete this entry?',
+        title: 'Are you sure you want to delete this education entry?',
+        content: 'This action cannot be undone.',
         okText: 'Delete',
         okType: 'danger',
+        cancelText: 'Cancel',
         onOk: async () => {
           try {
             setIsSaving(true);
             const { error } = await educationService.deleteEducation(
               itemToDelete.id
             );
-            if (error) throw error;
+
+            if (error) {
+              throw new Error(error.message || 'Failed to delete education');
+            }
+
             message.success('Education entry deleted successfully!');
-            await reloadData(); // Use the stable reload function
+            await reloadData();
             handleCancel();
           } catch (err) {
-            message.error('An error occurred while deleting.');
+            console.error('Delete error:', err);
+            message.error(
+              err instanceof Error
+                ? err.message
+                : 'An error occurred while deleting.'
+            );
           } finally {
             setIsSaving(false);
           }
@@ -170,7 +240,9 @@ export const EducationForm: React.FC<EducationFormProps> = ({ onChange }) => {
     [handleModalSave]
   );
   const onDeleteFromModal = useCallback(() => {
-    if (editingIndex !== null) handleDelete(editingIndex);
+    if (editingIndex !== null) {
+      handleDelete(editingIndex);
+    }
   }, [editingIndex, handleDelete]);
 
   if (loading) {

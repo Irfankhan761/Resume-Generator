@@ -128,6 +128,7 @@ const ProfilePictureUploader: React.FC<ProfilePictureUploaderProps> = ({
   const [croppedAreaPixels, setCroppedAreaPixels] = useState<any>(null);
   const fileRef = useRef<RcFile | null>(null);
   const [isHovered, setIsHovered] = useState(false);
+  const [localLoading, setLocalLoading] = useState(false);
 
   const resetCropperAdjustments = () => {
     setCrop({ x: 0, y: 0 });
@@ -143,6 +144,7 @@ const ProfilePictureUploader: React.FC<ProfilePictureUploaderProps> = ({
   };
 
   const handleOpenModal = (imageToCrop?: string) => {
+    console.log('Opening modal with image:', imageToCrop);
     if (imageToCrop) {
       setCropperImageSrc(imageToCrop);
     } else {
@@ -179,6 +181,8 @@ const ProfilePictureUploader: React.FC<ProfilePictureUploaderProps> = ({
       return;
     }
 
+    console.log('Starting image upload process');
+    setLocalLoading(true);
     onUploadStart?.();
     try {
       const croppedBlob = await getCroppedImg(
@@ -194,6 +198,9 @@ const ProfilePictureUploader: React.FC<ProfilePictureUploaderProps> = ({
 
       const originalFileName = fileRef.current?.name || 'avatar.jpeg';
       const fileName = `${userId}/${Date.now()}-${originalFileName}`;
+
+      console.log('Uploading to Supabase storage with filename:', fileName);
+
       const { error: uploadError } = await supabase.storage
         .from('avatars')
         .upload(fileName, croppedBlob, {
@@ -222,16 +229,19 @@ const ProfilePictureUploader: React.FC<ProfilePictureUploaderProps> = ({
         return;
       }
 
-      onUploadSuccess(publicURLData.publicUrl);
-      message.success(
-        'Image uploaded successfully! Click "Save Changes" to update your profile.'
+      console.log(
+        'Upload successful, calling onUploadSuccess with:',
+        publicURLData.publicUrl
       );
+      // Call the success callback immediately - the parent will handle saving
+      onUploadSuccess(publicURLData.publicUrl);
       setModalVisible(false);
       resetCropperState();
     } catch (error: any) {
       console.error('General upload error:', error.message);
       message.error('An unexpected error occurred during image upload.');
     } finally {
+      setLocalLoading(false);
       onUploadEnd?.();
     }
   };
@@ -254,8 +264,11 @@ const ProfilePictureUploader: React.FC<ProfilePictureUploaderProps> = ({
       okText: 'Remove',
       okType: 'danger',
       onOk: async () => {
+        console.log('Starting image removal process');
+        setLocalLoading(true);
         onUploadStart?.();
         try {
+          // Delete from storage
           const urlParts = initialImageUrl.split('/');
           const bucketName = 'avatars';
           const filePathIndex = urlParts.findIndex(
@@ -263,41 +276,46 @@ const ProfilePictureUploader: React.FC<ProfilePictureUploaderProps> = ({
           );
           const filePath = urlParts.slice(filePathIndex + 1).join('/');
 
-          if (!filePath) {
-            message.error('Could not determine file path for deletion.');
-            return;
+          if (filePath) {
+            console.log('Deleting file from storage:', filePath);
+            const { error: deleteError } = await supabase.storage
+              .from(bucketName)
+              .remove([filePath]);
+
+            if (deleteError) {
+              console.warn(
+                'Could not delete file from storage:',
+                deleteError.message
+              );
+              // Don't throw error here - we still want to remove from database
+            } else {
+              console.log('File deleted successfully from storage');
+            }
           }
 
-          const { error: deleteError } = await supabase.storage
-            .from(bucketName)
-            .remove([filePath]);
-
-          if (deleteError) {
-            console.error(
-              'Supabase Storage Deletion Error:',
-              deleteError.message,
-              deleteError
-            );
-            message.error('Failed to remove image: ' + deleteError.message);
-            return;
-          }
-
+          console.log('Removal successful, calling onUploadSuccess with null');
+          // Call the success callback with null - the parent will handle saving
           onUploadSuccess(null);
-          message.success(
-            'Profile picture removed successfully! Click "Save Changes" to update your profile.'
-          );
           setModalVisible(false);
           resetCropperState();
         } catch (error: any) {
           console.error('General removal error:', error.message);
           message.error('An unexpected error occurred during image removal.');
         } finally {
+          setLocalLoading(false);
           onUploadEnd?.();
         }
       },
-      okButtonProps: { loading: loading },
+      okButtonProps: { loading: loading || localLoading },
     });
   };
+
+  const isCurrentlyLoading = loading || localLoading;
+
+  console.log(
+    'ProfilePictureUploader render - initialImageUrl:',
+    initialImageUrl
+  );
 
   return (
     <>
@@ -312,17 +330,17 @@ const ProfilePictureUploader: React.FC<ProfilePictureUploaderProps> = ({
         onMouseLeave={() => setIsHovered(false)}
         onClick={() => handleOpenModal(initialImageUrl)}
       >
-        {initialImageUrl && !loading ? (
+        {initialImageUrl && !isCurrentlyLoading ? (
           <Avatar size={100} src={initialImageUrl} />
         ) : (
           <Avatar
             size={100}
-            icon={loading ? <LoadingOutlined /> : <UserOutlined />}
+            icon={isCurrentlyLoading ? <LoadingOutlined /> : <UserOutlined />}
           />
         )}
 
         {/* Hover overlay and icon */}
-        {isHovered && !loading && (
+        {isHovered && !isCurrentlyLoading && (
           <div
             style={{
               position: 'absolute',
@@ -350,19 +368,20 @@ const ProfilePictureUploader: React.FC<ProfilePictureUploaderProps> = ({
         onOk={handleOk}
         onCancel={handleCancel}
         width={700}
-        confirmLoading={loading}
-        okText={loading ? 'Processing...' : 'Apply & Save'}
-        cancelButtonProps={{ disabled: loading }}
-        maskClosable={!loading}
-        closable={!loading}
+        confirmLoading={isCurrentlyLoading}
+        okText={isCurrentlyLoading ? 'Processing...' : 'Apply & Save'}
+        cancelButtonProps={{ disabled: isCurrentlyLoading }}
+        maskClosable={!isCurrentlyLoading}
+        closable={!isCurrentlyLoading}
         footer={[
           initialImageUrl && (
             <Button
               key="remove"
               danger
               onClick={handleRemovePicture}
-              disabled={loading}
+              disabled={isCurrentlyLoading}
               icon={<DeleteOutlined />}
+              loading={localLoading}
             >
               Remove Picture
             </Button>
@@ -378,23 +397,27 @@ const ProfilePictureUploader: React.FC<ProfilePictureUploaderProps> = ({
               }, 0);
             }}
             onChange={handleFileChange}
-            disabled={loading}
+            disabled={isCurrentlyLoading}
           >
-            <Button disabled={loading} icon={<UploadOutlined />}>
+            <Button disabled={isCurrentlyLoading} icon={<UploadOutlined />}>
               Upload New
             </Button>
           </Upload>,
-          <Button key="cancel" onClick={handleCancel} disabled={loading}>
+          <Button
+            key="cancel"
+            onClick={handleCancel}
+            disabled={isCurrentlyLoading}
+          >
             Cancel
           </Button>,
           <Button
             key="submit"
             type="primary"
             onClick={handleOk}
-            loading={loading}
-            disabled={!cropperImageSrc || loading}
+            loading={isCurrentlyLoading}
+            disabled={!cropperImageSrc || isCurrentlyLoading}
           >
-            {loading ? 'Processing...' : 'Apply & Save'}
+            {isCurrentlyLoading ? 'Processing...' : 'Apply & Save'}
           </Button>,
         ]}
       >
@@ -436,7 +459,7 @@ const ProfilePictureUploader: React.FC<ProfilePictureUploaderProps> = ({
                     tooltip={{
                       formatter: (val) => `Zoom: ${val?.toFixed(1)}x`,
                     }}
-                    disabled={loading}
+                    disabled={isCurrentlyLoading}
                   />
                   <ZoomOutOutlined style={{ fontSize: 16 }} />
                 </div>
@@ -450,7 +473,7 @@ const ProfilePictureUploader: React.FC<ProfilePictureUploaderProps> = ({
                     onChange={setRotation}
                     style={{ flexGrow: 1 }}
                     tooltip={{ formatter: (val) => `Rotation: ${val}°` }}
-                    disabled={loading}
+                    disabled={isCurrentlyLoading}
                   />
                   <Text style={{ minWidth: 40, textAlign: 'right' }}>
                     {rotation}°

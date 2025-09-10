@@ -8,7 +8,6 @@ import ResetPasswordModal from '../popup/reset-password-modal';
 import ProfileSettingsCard from './profile-settings-card';
 import CvPreferencesCard from './cv-preferences-card';
 import DataStorageCard from './data-storage-card';
-import DeleteAccountCard from './delete-account-card'; // Import the new component
 
 const SettingsPage = () => {
   const [user, setUser] = useState<any>(null);
@@ -83,9 +82,6 @@ const SettingsPage = () => {
           <CvPreferencesCard />
 
           <DataStorageCard />
-
-          {/* Render the DeleteAccountCard component */}
-          {user?.id && <DeleteAccountCard userId={user.id} />}
         </div>
       </div>
       <ResetPasswordModal

@@ -1,7 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Card, Button, Input, message } from 'antd';
 import { supabase } from 'core/lib/supabaseClient';
-
 import ProfilePictureUploader from './profile-picture-uploader';
 
 interface ProfileSettingsCardProps {
@@ -22,27 +21,33 @@ const ProfileSettingsCard = ({
   );
   const [isSaving, setIsSaving] = useState(false);
   const [isImageUploadingInternal, setIsImageUploadingInternal] =
-    useState(false); // Manages loading state for the uploader
+    useState(false);
+  // Track if image was explicitly changed (uploaded or removed)
+  const [imageWasChanged, setImageWasChanged] = useState(false);
 
   useEffect(() => {
     if (initialUser) {
       setEditableUsername(initialUser.user_metadata?.username || '');
       setDisplayImageUrl(initialUser.user_metadata?.avatar_url);
+      // Reset change tracking when initialUser changes
+      setImageWasChanged(false);
+      setUploadedStorageUrl(null);
     }
   }, [initialUser]);
 
   // Updated to handle `null` for image removal
   const handleImageUploadSuccess = (publicUrl: string | null) => {
     setUploadedStorageUrl(publicUrl);
-    setDisplayImageUrl(publicUrl || undefined); // Display undefined if removed
+    setDisplayImageUrl(publicUrl || undefined);
+    setImageWasChanged(true); // Mark that image was explicitly changed
   };
 
   const handleSaveChanges = async () => {
     setIsSaving(true);
     let updates: { [key: string]: any } = {};
 
-    // Check if avatar changed (including removal)
-    if (uploadedStorageUrl !== initialUser?.user_metadata?.avatar_url) {
+    // Check if avatar changed (including removal) - only if explicitly changed
+    if (imageWasChanged) {
       updates.avatar_url = uploadedStorageUrl;
     }
 
@@ -67,8 +72,9 @@ const ProfileSettingsCard = ({
     } else {
       if (data.user) {
         onUserUpdate(data.user);
-        // Reset uploadedStorageUrl after successful save
+        // Reset state after successful save
         setUploadedStorageUrl(null);
+        setImageWasChanged(false);
         setDisplayImageUrl(data.user.user_metadata?.avatar_url);
         setEditableUsername(data.user.user_metadata?.username || '');
       }
@@ -80,14 +86,12 @@ const ProfileSettingsCard = ({
   const hasChanges = useMemo(() => {
     const currentDbUsername = initialUser?.user_metadata?.username ?? '';
     const usernameChanged = editableUsername !== currentDbUsername;
-    const avatarChanged =
-      uploadedStorageUrl !== null &&
-      uploadedStorageUrl !== initialUser?.user_metadata?.avatar_url;
-    // Also consider if an image was removed (uploadedStorageUrl is null, but initialUser had an avatar)
-    const avatarRemoved =
-      uploadedStorageUrl === null && initialUser?.user_metadata?.avatar_url;
-    return usernameChanged || avatarChanged || avatarRemoved;
-  }, [editableUsername, uploadedStorageUrl, initialUser]);
+
+    // Only consider avatar changed if it was explicitly changed
+    const avatarChanged = imageWasChanged;
+
+    return usernameChanged || avatarChanged;
+  }, [editableUsername, imageWasChanged, initialUser]);
 
   return (
     <Card
@@ -101,7 +105,7 @@ const ProfileSettingsCard = ({
           onUploadSuccess={handleImageUploadSuccess}
           onUploadStart={() => setIsImageUploadingInternal(true)}
           onUploadEnd={() => setIsImageUploadingInternal(false)}
-          loading={isImageUploadingInternal} // Pass internal loading state to the uploader
+          loading={isImageUploadingInternal}
         />
 
         <div>

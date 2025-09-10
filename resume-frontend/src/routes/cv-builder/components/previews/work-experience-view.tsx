@@ -1,6 +1,7 @@
 import { Typography } from 'antd';
-import { WorkExperience } from '../../types/types';
+import type { WorkExperience } from '../../types/types';
 import dayjs from 'dayjs';
+import { CompassOutlined, CarryOutOutlined } from '@ant-design/icons';
 
 const { Title, Text } = Typography;
 
@@ -8,92 +9,107 @@ interface WorkExperiencePreviewProps {
   data: WorkExperience[];
 }
 
-const formatDate = (date: string | null) => {
-  if (!date) return 'N/A';
-  return dayjs(date).format('MMM YYYY');
-};
-
 export const WorkExperiencePreview = ({ data }: WorkExperiencePreviewProps) => {
+  const formatDate = (date: string | null | undefined) => {
+    if (!date) return '';
+    return dayjs(date).format('MMM YYYY');
+  };
+
+  const hasExperienceData = data && data.length > 0;
+
   return (
-    <div className="mb-8 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-6 shadow-md">
-      <div className="flex items-center mb-6">
-        <Title
-          level={3}
-          className="!mb-0 !text-xl md:!text-2xl !text-slate-800 !font-medium border-l-4 border-blue-500 pl-3"
-        >
-          WORK EXPERIENCE
-        </Title>
-      </div>
+    <div className="relative print:break-inside-avoid mt-4">
+      {/* Decorative background elements */}
+      <div className="absolute -top-2 -left-2 w-20 h-20 bg-blue-100 rounded-full opacity-50 blur-xl print:hidden"></div>
+      <div className="absolute -bottom-2 -right-2 w-16 h-16 bg-indigo-100 rounded-full opacity-40 blur-lg print:hidden"></div>
 
-      <div className="space-y-5">
-        {data.map((exp) => {
-          const startDate = formatDate(exp.startDate);
-          const endDate = exp.currentlyWorking
-            ? 'Present'
-            : formatDate(exp.endDate);
+      <div className="relative bg-gradient-to-br from-blue-50/80 via-white to-indigo-50/60 backdrop-blur-sm border border-gray-100 rounded-2xl p-8 shadow-lg print:shadow-none print:border-gray-300">
+        {/* Section Title */}
+        <div className="flex items-center mb-6">
+          <div className="w-1 h-6 bg-gradient-to-b from-blue-500 to-indigo-600 rounded-full mr-3 print:bg-gray-400"></div>
+          <Title
+            level={4}
+            className="!mb-0 !text-gray-800 !font-semibold !text-base md:!text-lg tracking-wide uppercase print:!text-black"
+          >
+            Work Experience
+          </Title>
+        </div>
 
-          return (
-            <div
-              key={exp.id}
-              className="bg-white rounded-lg p-5 shadow-sm transition-all hover:shadow-md"
-            >
-              <div className="flex flex-col md:flex-row md:justify-between md:items-center mb-3">
-                <Text strong className="!text-lg md:!text-xl !text-slate-800">
-                  {exp.position}
-                </Text>
-                <div className="mt-1 md:mt-0">
-                  <Text className="bg-blue-100 text-blue-800 py-1 px-3 rounded-full text-sm font-medium">
-                    {startDate} - {endDate}
-                  </Text>
+        {/* Experience List */}
+        <div className="space-y-6">
+          {hasExperienceData ? (
+            data.map((exp) => {
+              const startDate = formatDate(exp.startDate);
+              const endDate = exp.currentlyWorking
+                ? 'Present'
+                : formatDate(exp.endDate);
+
+              return (
+                <div
+                  key={exp.id}
+                  className="bg-white/70 backdrop-blur-sm border border-gray-100 rounded-xl p-5 shadow-sm hover:shadow-md transition-all duration-200 print:shadow-none print:border-gray-300"
+                >
+                  <div className="flex flex-col md:flex-row justify-between items-start mb-2">
+                    <div className="flex-grow">
+                      <Text className="text-lg font-semibold text-gray-800 block">
+                        {exp.position || (
+                          <span className="text-gray-400 italic">Position</span>
+                        )}
+                      </Text>
+                      <div className="flex items-center gap-x-3 gap-y-1 flex-wrap mt-1">
+                        <Text className="text-base text-blue-700 font-medium">
+                          {exp.company || (
+                            <span className="text-gray-400 italic">
+                              Company
+                            </span>
+                          )}
+                        </Text>
+                        {exp.location && (
+                          <div className="flex items-center text-gray-500">
+                            <CompassOutlined className="mr-1.5" />
+                            <Text className="text-sm text-gray-600">
+                              {exp.location}
+                            </Text>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex-shrink-0 mt-2 md:mt-0">
+                      <Text className="bg-blue-100 text-blue-800 py-1 px-3 rounded-full text-sm font-medium">
+                        {startDate} - {endDate}
+                      </Text>
+                    </div>
+                  </div>
+
+                  {exp.description && exp.description.length > 0 && (
+                    <ul className="mt-4 border-t border-gray-200/80 pt-4 pl-5 space-y-2">
+                      {exp.description.map((desc, index) =>
+                        desc ? (
+                          <li
+                            key={index}
+                            className="text-gray-700 text-sm md:text-base leading-relaxed relative before:content-['•'] before:absolute before:-left-5 before:text-blue-500 before:text-xl"
+                          >
+                            {desc}
+                          </li>
+                        ) : null
+                      )}
+                    </ul>
+                  )}
                 </div>
+              );
+            })
+          ) : (
+            // Empty State
+            <div className="text-center py-8 print:hidden">
+              <div className="w-16 h-16 bg-gray-100 rounded-full mx-auto mb-4 flex items-center justify-center">
+                <CarryOutOutlined className="text-2xl text-gray-400" />
               </div>
-
-              <div className="flex flex-wrap items-center gap-2 mb-4">
-                <Text className="!text-base !text-blue-600 !font-medium">
-                  {exp.company}
-                </Text>
-                {exp.location && (
-                  <Text className="flex items-center text-slate-600 text-sm">
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      className="h-4 w-4 mr-1"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"
-                      />
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"
-                      />
-                    </svg>
-                    {exp.location}
-                  </Text>
-                )}
-              </div>
-
-              {exp.description?.length > 0 && (
-                <ul className="mt-3 border-t border-gray-100 pt-3 pl-5 space-y-2">
-                  {exp.description.map((desc, index) => (
-                    <li
-                      key={index}
-                      className="text-slate-700 relative before:content-['•'] before:absolute before:-left-5 before:text-blue-500 before:text-xl"
-                    >
-                      {desc}
-                    </li>
-                  ))}
-                </ul>
-              )}
+              <Text className="text-gray-500 italic">
+                Add your work experience to build your timeline
+              </Text>
             </div>
-          );
-        })}
+          )}
+        </div>
       </div>
     </div>
   );
