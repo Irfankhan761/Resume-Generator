@@ -1,7 +1,17 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Card, Form, Input, Row, Col, Button, message, Spin } from 'antd';
 import {
-  UserOutlined,
+  Card,
+  Form,
+  Input,
+  Row,
+  Col,
+  Button,
+  message,
+  Spin,
+  Typography,
+  Divider,
+} from 'antd';
+import {
   SaveOutlined,
   EditOutlined,
   FileTextOutlined,
@@ -18,14 +28,16 @@ import { EssentialInfoFields } from './essential-info-fields';
 import { OptionalDetailsModal } from './optional-details-modal';
 import { OptionalInfoSection } from './optional-info-section';
 import { personalInfoService } from '../../../services/personal-info-sevice';
+import CvProfilePictureUploader from './cv-profile-picture';
+
+const { Title, Text } = Typography;
 
 interface PersonalInfoFormProps {
-  data: PersonalInfo;
-  onChange: (data: PersonalInfo) => void;
+  data: PersonalInfo & { profileImage?: string };
+  onChange: (data: PersonalInfo & { profileImage?: string }) => void;
   onSave?: () => void;
 }
 
-// State to manage visibility of optional sections
 interface SectionVisibility {
   jobTitle: boolean;
   location: boolean;
@@ -41,7 +53,7 @@ export const PersonalInfoForm: React.FC<PersonalInfoFormProps> = ({
   const [form] = Form.useForm();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [hasLoaded, setHasLoaded] = useState(false);
+  const [isUploadingProfileImage, setIsUploadingProfileImage] = useState(false);
   const [isModalVisible, setIsModalVisible] = useState(false);
 
   const [visibility, setVisibility] = useState<SectionVisibility>({
@@ -51,76 +63,69 @@ export const PersonalInfoForm: React.FC<PersonalInfoFormProps> = ({
     links: false,
   });
 
+  const hasLoaded = useRef(false);
+
   const handleValuesChange = useCallback(
     (_: any, allValues: PersonalInfo) => {
-      if (hasLoaded) {
-        onChange(allValues);
+      if (hasLoaded.current) {
+        onChange({ ...allValues, profileImage: data.profileImage });
       }
     },
-    [onChange, hasLoaded]
+    [onChange, data.profileImage]
+  );
+
+  const handleProfileImageUploadSuccess = useCallback(
+    (publicUrl: string | null) => {
+      const updatedData = { ...data, profileImage: publicUrl || undefined };
+      onChange(updatedData);
+      form.setFieldsValue({ profileImage: publicUrl });
+    },
+    [data, onChange, form]
   );
 
   const handleSave = async () => {
     try {
       setSaving(true);
-      await form.validateFields();
-      const formData = form.getFieldsValue();
+      const formData = await form.validateFields();
 
-      const normalizedData: PersonalInfo = {
-        fullName: formData.fullName || '',
-        email: formData.email || '',
-        phone: formData.phone || '',
+      const normalizedData: PersonalInfo & { profileImage?: string } = {
+        ...formData,
         jobTitle: visibility.jobTitle ? formData.jobTitle || '' : '',
         location: visibility.location ? formData.location || '' : '',
         summary: visibility.summary ? formData.summary || '' : '',
         website: visibility.links ? formData.website || '' : '',
         linkedin: visibility.links ? formData.linkedin || '' : '',
         github: visibility.links ? formData.github || '' : '',
+        profileImage: data.profileImage,
       };
 
-      const { error, data: savedData } =
-        await personalInfoService.savePersonalInfo(normalizedData);
+      const { error } = await personalInfoService.savePersonalInfo(
+        normalizedData
+      );
+
       if (error) {
-        message.error('Failed to save personal information');
+        message.error('Failed to save personal information.');
         return;
       }
+
       message.success('Personal information saved successfully!');
-
-      if (savedData) {
-        onChange({
-          fullName: savedData.full_name,
-          jobTitle: savedData.job_title,
-          email: savedData.email,
-          phone: savedData.phone,
-          location: savedData.location || '',
-          website: savedData.website || '',
-          linkedin: savedData.linkedin || '',
-          github: savedData.github || '',
-          summary: savedData.summary,
-        });
-      } else {
-        onChange(normalizedData);
-      }
-
       onSave?.();
     } catch (error) {
-      message.error('Please fix the form errors before saving');
+      console.error('Save error:', error);
+      message.error('Please complete all required fields before saving.');
     } finally {
       setSaving(false);
     }
   };
 
-  const didLoadRef = useRef(false);
-
   const loadPersonalInfo = useCallback(async () => {
     try {
-      setLoading(true);
       const { data: savedData, error } =
         await personalInfoService.loadPersonalInfo();
+
       if (error && (error as any).code !== 'PGRST116') {
-        message.error('Failed to load saved data');
+        message.error('Failed to load your information.');
       } else if (savedData) {
-        // If your savedData shape differs from form shape, map accordingly
         form.setFieldsValue(savedData);
         onChange(savedData);
         setVisibility({
@@ -137,17 +142,15 @@ export const PersonalInfoForm: React.FC<PersonalInfoFormProps> = ({
         form.setFieldsValue(data);
       }
     } catch (err) {
-      console.error('Unexpected error:', err);
-      message.error('Failed to load saved data');
+      console.error('Unexpected error during load:', err);
+      message.error('An unexpected error occurred while loading your data.');
     } finally {
       setLoading(false);
-      setHasLoaded(true);
+      hasLoaded.current = true;
     }
   }, [form, onChange, data]);
 
   useEffect(() => {
-    if (didLoadRef.current) return;
-    didLoadRef.current = true;
     loadPersonalInfo();
   }, [loadPersonalInfo]);
 
@@ -174,12 +177,13 @@ export const PersonalInfoForm: React.FC<PersonalInfoFormProps> = ({
       onChange({ ...data, ...resetValues });
     };
 
+  const currentUserId = 'user_abc_123';
+
   if (loading) {
     return (
-      <div
-        style={{ display: 'flex', justifyContent: 'center', padding: '40px' }}
-      >
+      <div className="flex flex-col items-center justify-center py-16">
         <Spin size="large" />
+        <Text className="mt-4 text-gray-500">Loading your profile...</Text>
       </div>
     );
   }
@@ -187,41 +191,65 @@ export const PersonalInfoForm: React.FC<PersonalInfoFormProps> = ({
   return (
     <Card
       title={
-        <div
-          style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-          }}
-        >
-          <span style={{ fontSize: '20px', fontWeight: '600' }}>
-            <UserOutlined style={{ marginRight: '8px', color: '#3498db' }} />
-            Personal Information
-          </span>
-          <Button
-            type="primary"
-            icon={<SaveOutlined />}
-            loading={saving}
-            onClick={handleSave}
-          >
-            Save
-          </Button>
-        </div>
+        <Title level={4} style={{ margin: 0 }}>
+          Personal Information
+        </Title>
       }
-      className="mb-8"
-      style={{ boxShadow: '0 4px 12px rgba(0, 0, 0, 0.05)' }}
+      extra={
+        <Button
+          type="primary"
+          icon={<SaveOutlined />}
+          loading={saving || isUploadingProfileImage}
+          onClick={handleSave}
+          size="large"
+        >
+          {saving ? 'Saving...' : 'Save Changes'}
+        </Button>
+      }
+      className="mb-8 shadow-sm"
     >
       <Form form={form} layout="vertical" onValuesChange={handleValuesChange}>
-        <EssentialInfoFields />
+        <Row gutter={32}>
+          <Col xs={24} md={8}>
+            <Title level={5}>Profile Picture</Title>
+            <CvProfilePictureUploader
+              initialImageUrl={data.profileImage}
+              userId={currentUserId}
+              onUploadSuccess={handleProfileImageUploadSuccess}
+              loading={isUploadingProfileImage} // <-- THIS LINE IS THE FIX
+              onUploadStart={() => setIsUploadingProfileImage(true)}
+              onUploadEnd={() => setIsUploadingProfileImage(false)}
+            />
+            <Text type="secondary" style={{ display: 'block', marginTop: 8 }}>
+              Recommended: Square image, max 5MB (JPG, PNG).
+            </Text>
+          </Col>
+          <Col xs={24} md={16}>
+            <EssentialInfoFields />
+          </Col>
+        </Row>
+
+        <Divider />
+
+        <div className="flex justify-between items-center mb-4">
+          <Title level={5}>Optional Information</Title>
+          <Button
+            type="dashed"
+            icon={<PlusOutlined />}
+            onClick={() => setIsModalVisible(true)}
+          >
+            Add / Edit Optional Details
+          </Button>
+        </div>
 
         {visibility.jobTitle && (
           <OptionalInfoSection
             title="Professional Title"
-            icon={<EditOutlined style={{ marginRight: '8px' }} />}
+            icon={<EditOutlined />}
             onRemove={createRemoveHandler('jobTitle', ['jobTitle'])}
           >
             <Form.Item name="jobTitle" label="Job Title">
-              <Input readOnly placeholder="e.g., Senior Software Engineer" />
+              <Input placeholder="e.g., Senior Software Engineer" />
             </Form.Item>
           </OptionalInfoSection>
         )}
@@ -229,12 +257,11 @@ export const PersonalInfoForm: React.FC<PersonalInfoFormProps> = ({
         {visibility.location && (
           <OptionalInfoSection
             title="Location"
-            icon={<EnvironmentOutlined style={{ marginRight: '8px' }} />}
+            icon={<EnvironmentOutlined />}
             onRemove={createRemoveHandler('location', ['location'])}
           >
             <Form.Item name="location" label="Location">
               <Input
-                readOnly
                 prefix={<CompassOutlined />}
                 placeholder="e.g., San Francisco, CA"
               />
@@ -245,14 +272,15 @@ export const PersonalInfoForm: React.FC<PersonalInfoFormProps> = ({
         {visibility.summary && (
           <OptionalInfoSection
             title="Professional Summary"
-            icon={<FileTextOutlined style={{ marginRight: '8px' }} />}
+            icon={<FileTextOutlined />}
             onRemove={createRemoveHandler('summary', ['summary'])}
           >
             <Form.Item name="summary" label="About You">
               <Input.TextArea
-                readOnly
                 rows={4}
-                placeholder="Brief professional summary..."
+                placeholder="A brief summary of your professional background..."
+                showCount
+                maxLength={500}
               />
             </Form.Item>
           </OptionalInfoSection>
@@ -261,47 +289,41 @@ export const PersonalInfoForm: React.FC<PersonalInfoFormProps> = ({
         {visibility.links && (
           <OptionalInfoSection
             title="Professional Links"
-            icon={<LinkOutlined style={{ marginRight: '8px' }} />}
+            icon={<LinkOutlined />}
             onRemove={createRemoveHandler('links', [
               'website',
               'linkedin',
               'github',
             ])}
           >
-            <Row gutter={[24, 16]}>
-              <Col xs={24} md={8}>
+            <Row gutter={16}>
+              <Col xs={24} sm={8}>
                 <Form.Item name="website" label="Website">
-                  <Input readOnly prefix={<GlobalOutlined />} />
+                  <Input
+                    prefix={<GlobalOutlined />}
+                    placeholder="https://yourwebsite.com"
+                  />
                 </Form.Item>
               </Col>
-              <Col xs={24} md={8}>
+              <Col xs={24} sm={8}>
                 <Form.Item name="linkedin" label="LinkedIn">
-                  <Input readOnly prefix={<LinkedinOutlined />} />
+                  <Input
+                    prefix={<LinkedinOutlined />}
+                    placeholder="https://linkedin.com/in/username"
+                  />
                 </Form.Item>
               </Col>
-              <Col xs={24} md={8}>
+              <Col xs={24} sm={8}>
                 <Form.Item name="github" label="GitHub">
-                  <Input readOnly prefix={<GithubOutlined />} />
+                  <Input
+                    prefix={<GithubOutlined />}
+                    placeholder="https://github.com/username"
+                  />
                 </Form.Item>
               </Col>
             </Row>
           </OptionalInfoSection>
         )}
-
-        <div style={{ marginTop: '32px', textAlign: 'center' }}>
-          <Button
-            type="dashed"
-            icon={<PlusOutlined />}
-            onClick={() => setIsModalVisible(true)}
-            style={{
-              height: '50px',
-              width: '250px',
-              border: '2px dashed #d9d9d9',
-            }}
-          >
-            Add / Edit Optional Details
-          </Button>
-        </div>
       </Form>
 
       <OptionalDetailsModal

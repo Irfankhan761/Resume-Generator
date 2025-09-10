@@ -3,10 +3,16 @@ import { useState, useCallback, useRef, useEffect } from 'react';
 import type { CVData } from './types/types';
 import { CVForms } from './components/cv-form';
 import { CVPreviews } from './components/cv-preview';
-import { ArrowDownToLine, Loader2 } from 'lucide-react';
-import { message } from 'antd';
+import {
+  ArrowDownToLine,
+  Loader2,
+  Save,
+  RefreshCw,
+  Eye,
+  EyeOff,
+} from 'lucide-react';
+import { message, FloatButton, Tooltip } from 'antd';
 import html2pdf from 'html2pdf.js';
-// Adjust this path based on where DashboardLayout is located relative to CV.tsx
 import { DashboardLayout } from './components/layout/dashboard-layout/dashboard-layout';
 
 export type CVSection =
@@ -40,35 +46,106 @@ export const CV = () => {
     useState<CVSection>('Personal Info');
   const [cvData, setCVData] = useState<CVData>(initialData);
   const [isSaving, setIsSaving] = useState(false);
+  const [isAutoSaving, setIsAutoSaving] = useState(false);
+  const [lastSaved, setLastSaved] = useState<Date | null>(null);
+  const [previewMode, setPreviewMode] = useState(false);
+  const [unsavedChanges, setUnsavedChanges] = useState(false);
   const previewRef = useRef<HTMLDivElement>(null);
+  const autoSaveTimer = useRef<NodeJS.Timeout>();
 
+  // Load data on component mount
   useEffect(() => {
     const savedData = localStorage.getItem('cv-data');
+    const savedTimestamp = localStorage.getItem('cv-last-saved');
+
     if (savedData) {
-      setCVData(JSON.parse(savedData));
+      try {
+        const parsedData = JSON.parse(savedData);
+        setCVData(parsedData);
+        if (savedTimestamp) {
+          setLastSaved(new Date(savedTimestamp));
+        }
+      } catch (error) {
+        console.error('Failed to parse saved CV data:', error);
+        message.error('Failed to load saved data');
+      }
     }
   }, []);
 
-  const handleDataChange = useCallback((newData: CVData) => {
-    setCVData(newData);
-    localStorage.setItem('cv-data', JSON.stringify(newData));
+  // Auto-save functionality
+  const autoSave = useCallback(async (data: CVData) => {
+    if (autoSaveTimer.current) {
+      clearTimeout(autoSaveTimer.current);
+    }
+
+    autoSaveTimer.current = setTimeout(() => {
+      setIsAutoSaving(true);
+      try {
+        localStorage.setItem('cv-data', JSON.stringify(data));
+        localStorage.setItem('cv-last-saved', new Date().toISOString());
+        setLastSaved(new Date());
+        setUnsavedChanges(false);
+      } catch (error) {
+        console.error('Auto-save failed:', error);
+      } finally {
+        setIsAutoSaving(false);
+      }
+    }, 2000); // Auto-save after 2 seconds of inactivity
   }, []);
 
+  const handleDataChange = useCallback(
+    (newData: CVData) => {
+      setCVData(newData);
+      setUnsavedChanges(true);
+      autoSave(newData);
+    },
+    [autoSave]
+  );
+
+  const handleManualSave = useCallback(async () => {
+    setIsSaving(true);
+    try {
+      localStorage.setItem('cv-data', JSON.stringify(cvData));
+      localStorage.setItem('cv-last-saved', new Date().toISOString());
+      setLastSaved(new Date());
+      setUnsavedChanges(false);
+      message.success('CV saved successfully!');
+    } catch (error) {
+      console.error('Manual save failed:', error);
+      message.error('Failed to save CV');
+    } finally {
+      setIsSaving(false);
+    }
+  }, [cvData]);
+
   const handleExportAsPDF = useCallback(async () => {
-    if (!previewRef.current) return;
+    if (!previewRef.current) {
+      message.error('Preview not available for PDF export');
+      return;
+    }
 
     setIsSaving(true);
     try {
       const element = previewRef.current;
+      const fileName = `${cvData.personalInfo.fullName.replace(
+        /\s+/g,
+        '_'
+      )}_CV.pdf`;
+
       const opt = {
         margin: [10, 10, 10, 10],
-        filename: `${cvData.personalInfo.fullName.replace(/\s+/g, '_')}_CV.pdf`,
-        image: { type: 'jpeg', quality: 0.98 },
+        filename: fileName,
+        image: {
+          type: 'jpeg',
+          quality: 0.98,
+        },
         html2canvas: {
           scale: 2,
           useCORS: true,
           letterRendering: true,
           logging: false,
+          allowTaint: true,
+          scrollY: 0,
         },
         jsPDF: {
           unit: 'mm',
@@ -76,7 +153,11 @@ export const CV = () => {
           orientation: 'portrait',
           compress: true,
         },
-        pagebreak: { mode: 'avoid-all' },
+        pagebreak: {
+          mode: ['avoid-all', 'css', 'legacy'],
+          before: '.page-break-before',
+          after: '.page-break-after',
+        },
         enableLinks: true,
       };
 
@@ -85,7 +166,7 @@ export const CV = () => {
         .from(element)
         .save();
 
-      message.success('PDF exported successfully!');
+      message.success(`PDF "${fileName}" downloaded successfully!`);
     } catch (error) {
       console.error('Error generating PDF:', error);
       message.error('Failed to export PDF. Please try again.');
@@ -94,79 +175,221 @@ export const CV = () => {
     }
   }, [cvData.personalInfo.fullName]);
 
+  const togglePreviewMode = () => {
+    setPreviewMode(!previewMode);
+  };
+
+  const formatLastSaved = (date: Date | null) => {
+    if (!date) return 'Never';
+    const now = new Date();
+    const diff = now.getTime() - date.getTime();
+
+    if (diff < 60000) return 'Just now';
+    if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`;
+    if (diff < 86400000) return `${Math.floor(diff / 3600000)}h ago`;
+    return date.toLocaleDateString();
+  };
+
+  // Cleanup auto-save timer on unmount
+  useEffect(() => {
+    return () => {
+      if (autoSaveTimer.current) {
+        clearTimeout(autoSaveTimer.current);
+      }
+    };
+  }, []);
+
   return (
     <DashboardLayout
       rightNavContent={
-        <button
-          onClick={handleExportAsPDF}
-          disabled={isSaving}
-          className="group inline-flex items-center justify-center leading-none no-underline border-none cursor-pointer rounded-full font-semibold text-white whitespace-nowrap overflow-hidden text-ellipsis transition-all duration-300 py-2.5 px-4 gap-3 bg-blue-600 hover:bg-blue-800 active:scale-[0.98] shadow-md hover:shadow-lg"
-          style={{ paddingLeft: '20px' }}
-        >
-          {isSaving ? (
-            <>
-              <Loader2 className="animate-spin h-4 w-4" />
-              <span>Exporting...</span>
-            </>
-          ) : (
-            <>
-              <span>Export PDF</span>
-              <span className="flex-shrink-0 w-6 h-6 relative grid place-items-center overflow-hidden rounded-full bg-white text-[#4DBCE9] group-hover:text-black">
-                <ArrowDownToLine
-                  className="absolute transform transition-transform duration-300 group-hover:translate-x-[150%] group-hover:-translate-y-[150%]"
-                  size={14}
-                />
-                <ArrowDownToLine
-                  className="absolute transform transition-transform duration-300 delay-100 translate-x-[-150%] translate-y-[150%] group-hover:translate-x-0 group-hover:translate-y-0"
-                  size={14}
-                />
-              </span>
-            </>
-          )}
-        </button>
+        <div className="flex items-center gap-3">
+          {/* Save Status Indicator */}
+          <div className="hidden md:flex items-center gap-2 text-sm text-gray-600">
+            {isAutoSaving && (
+              <>
+                <RefreshCw className="w-4 h-4 animate-spin" />
+                <span>Saving...</span>
+              </>
+            )}
+            {!isAutoSaving && (
+              <>
+                <div
+                  className={`w-2 h-2 rounded-full ${
+                    unsavedChanges ? 'bg-yellow-500' : 'bg-green-500'
+                  }`}
+                ></div>
+                <span>
+                  {unsavedChanges
+                    ? 'Unsaved changes'
+                    : `Saved ${formatLastSaved(lastSaved)}`}
+                </span>
+              </>
+            )}
+          </div>
+
+          {/* Preview Mode Toggle */}
+          <Tooltip title={previewMode ? 'Show editor' : 'Preview only'}>
+            <button
+              onClick={togglePreviewMode}
+              className="hidden lg:flex items-center justify-center w-10 h-10 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 transition-colors"
+            >
+              {previewMode ? (
+                <Eye className="w-4 h-4" />
+              ) : (
+                <EyeOff className="w-4 h-4" />
+              )}
+            </button>
+          </Tooltip>
+
+          {/* Manual Save Button */}
+          <Tooltip title="Save manually">
+            <button
+              onClick={handleManualSave}
+              disabled={isSaving || isAutoSaving}
+              className="flex items-center justify-center w-10 h-10 rounded-lg bg-blue-100 hover:bg-blue-200 text-blue-700 transition-colors disabled:opacity-50"
+            >
+              <Save className="w-4 h-4" />
+            </button>
+          </Tooltip>
+
+          {/* Export PDF Button */}
+          <button
+            onClick={handleExportAsPDF}
+            disabled={isSaving}
+            className="group inline-flex items-center justify-center leading-none no-underline border-none cursor-pointer rounded-xl font-semibold text-white whitespace-nowrap overflow-hidden text-ellipsis transition-all duration-300 py-3 px-6 gap-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 active:scale-[0.98] shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {isSaving ? (
+              <>
+                <Loader2 className="animate-spin h-4 w-4" />
+                <span>Exporting...</span>
+              </>
+            ) : (
+              <>
+                <span className="hidden sm:inline">Export PDF</span>
+                <span className="sm:hidden">PDF</span>
+                <span className="flex-shrink-0 w-6 h-6 relative grid place-items-center overflow-hidden rounded-full bg-white/20 backdrop-blur-sm">
+                  <ArrowDownToLine
+                    className="absolute transform transition-transform duration-300 group-hover:translate-x-[150%] group-hover:-translate-y-[150%]"
+                    size={14}
+                  />
+                  <ArrowDownToLine
+                    className="absolute transform transition-transform duration-300 delay-100 translate-x-[-150%] translate-y-[150%] group-hover:translate-x-0 group-hover:translate-y-0"
+                    size={14}
+                  />
+                </span>
+              </>
+            )}
+          </button>
+        </div>
       }
       sidebarConfig={{
         activeSection,
         onSectionChange: setActiveSection,
       }}
     >
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 md:gap-8">
-        <div className="space-y-6">
-          <div className="bg-white rounded-2xl shadow-md p-6 border border-gray-100 transition-all duration-300 hover:shadow-lg">
-            <div className="mb-6">
-              <h2 className="text-2xl font-bold text-gray-800 flex items-center">
-                <span className="bg-blue-100 text-blue-600 w-8 h-8 rounded-full flex items-center justify-center mr-3">
-                  {activeSection.charAt(0)}
-                </span>
-                {activeSection}
-              </h2>
-              <p className="text-gray-500 text-sm mt-1 ml-11">
-                Fill in your {activeSection.toLowerCase()} details
-              </p>
+      <div
+        className={`transition-all duration-300 ${
+          previewMode ? 'grid-cols-1' : 'grid grid-cols-1 lg:grid-cols-2'
+        } gap-6 md:gap-8`}
+      >
+        {/* Forms Section */}
+        {!previewMode && (
+          <div className="space-y-6">
+            <div className="bg-white rounded-2xl shadow-lg p-6 border border-gray-100 transition-all duration-300 hover:shadow-xl">
+              <div className="mb-6">
+                <div className="flex items-center justify-between mb-2">
+                  <h2 className="text-2xl font-bold text-gray-800 flex items-center">
+                    <span className="bg-gradient-to-br from-blue-500 to-indigo-600 text-white w-10 h-10 rounded-xl flex items-center justify-center mr-3 shadow-md">
+                      {activeSection.charAt(0)}
+                    </span>
+                    {activeSection}
+                  </h2>
+                  {unsavedChanges && (
+                    <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                      <span className="w-1.5 h-1.5 rounded-full bg-yellow-500 mr-1"></span>
+                      Unsaved
+                    </span>
+                  )}
+                </div>
+                <p className="text-gray-500 text-sm ml-13">
+                  Fill in your {activeSection.toLowerCase()} details
+                </p>
+              </div>
+              <CVForms
+                data={cvData}
+                onChange={handleDataChange}
+                activeSection={activeSection}
+              />
             </div>
-            <CVForms
-              data={cvData}
-              onChange={handleDataChange}
-              activeSection={activeSection}
-            />
           </div>
-        </div>
+        )}
 
-        <div className="lg:sticky h-fit" id="cv-preview-mobile">
-          <div className="bg-white rounded-2xl shadow-md p-6 border border-gray-100 transition-all duration-300 hover:shadow-lg">
+        {/* Preview Section */}
+        <div
+          className={`${previewMode ? 'max-w-4xl mx-auto' : 'lg:sticky h-fit'}`}
+          id="cv-preview-mobile"
+        >
+          <div className="bg-white rounded-2xl shadow-lg p-6 border border-gray-100 transition-all duration-300 hover:shadow-xl">
             <div className="flex justify-between items-center mb-6">
               <h2 className="text-2xl font-bold text-gray-800">CV Preview</h2>
-              <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-green-100 text-green-800">
-                <span className="w-2 h-2 rounded-full bg-green-500 mr-2"></span>
-                Real-time
-              </span>
+              <div className="flex items-center gap-3">
+                <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-green-100 text-green-800">
+                  <span className="w-2 h-2 rounded-full bg-green-500 mr-2 animate-pulse"></span>
+                  Real-time
+                </span>
+                {previewMode && (
+                  <button
+                    onClick={togglePreviewMode}
+                    className="lg:hidden px-3 py-1 rounded-lg bg-blue-100 text-blue-700 text-sm font-medium hover:bg-blue-200 transition-colors"
+                  >
+                    Show Editor
+                  </button>
+                )}
+              </div>
             </div>
-            <div ref={previewRef} className="transition-transform duration-300">
+            <div
+              ref={previewRef}
+              className={`transition-all duration-300 ${
+                previewMode ? 'transform scale-100' : ''
+              }`}
+              style={{
+                transformOrigin: 'top center',
+                minHeight: previewMode ? '100vh' : 'auto',
+              }}
+            >
               <CVPreviews data={cvData} />
             </div>
           </div>
         </div>
       </div>
+
+      {/* Floating Action Buttons */}
+      <FloatButton.Group
+        trigger="click"
+        type="primary"
+        style={{ right: 24, bottom: 24 }}
+        icon={<Save />}
+      >
+        <Tooltip title="Export as PDF" placement="left">
+          <FloatButton
+            icon={<ArrowDownToLine size={16} />}
+            onClick={handleExportAsPDF}
+          />
+        </Tooltip>
+        <Tooltip title="Manual Save" placement="left">
+          <FloatButton icon={<Save size={16} />} onClick={handleManualSave} />
+        </Tooltip>
+        <Tooltip
+          title={previewMode ? 'Show Editor' : 'Preview Only'}
+          placement="left"
+        >
+          <FloatButton
+            className="lg:hidden"
+            icon={previewMode ? <Eye size={16} /> : <EyeOff size={16} />}
+            onClick={togglePreviewMode}
+          />
+        </Tooltip>
+      </FloatButton.Group>
     </DashboardLayout>
   );
 };

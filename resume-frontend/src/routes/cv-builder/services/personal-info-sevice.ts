@@ -3,7 +3,7 @@ import type { PersonalInfo } from '@routes/cv-builder/types/types';
 
 export const personalInfoService = {
   async savePersonalInfo(
-    data: PersonalInfo
+    data: PersonalInfo // Now PersonalInfo includes profileImage?
   ): Promise<{ error: any; data: any }> {
     try {
       const user = await supabase.auth.getUser();
@@ -31,6 +31,7 @@ export const personalInfoService = {
             linkedin: data.linkedin,
             github: data.github,
             summary: data.summary,
+            profile_image: data.profileImage, // <--- Add this line
           })
           .eq('user_id', user.data.user.id)
           .select()
@@ -52,6 +53,7 @@ export const personalInfoService = {
             linkedin: data.linkedin,
             github: data.github,
             summary: data.summary,
+            profile_image: data.profileImage, // <--- Add this line
           })
           .select()
           .single();
@@ -59,6 +61,7 @@ export const personalInfoService = {
         return { error, data: newData };
       }
     } catch (error) {
+      console.error('Error in savePersonalInfo:', error); // Better error logging
       return { error, data: null };
     }
   },
@@ -77,15 +80,14 @@ export const personalInfoService = {
         .eq('user_id', user.data.user.id)
         .single();
 
-      if (error) {
+      if (error && (error as any).code !== 'PGRST116') {
+        console.error('Error loading personal info from DB:', error);
         return { error, data: null };
       }
 
       if (!personalInfo) {
         return { error: null, data: null };
       }
-
-      // Convert database fields to component format
       const formattedData: PersonalInfo = {
         fullName: personalInfo.full_name,
         jobTitle: personalInfo.job_title,
@@ -96,15 +98,16 @@ export const personalInfoService = {
         linkedin: personalInfo.linkedin || '',
         github: personalInfo.github || '',
         summary: personalInfo.summary,
+        profileImage: personalInfo.profile_image || undefined,
       };
 
       return { error: null, data: formattedData };
     } catch (error) {
+      console.error('Unexpected error in loadPersonalInfo:', error);
       return { error, data: null };
     }
   },
 
-  // Delete personal info
   async deletePersonalInfo(): Promise<{ error: any }> {
     try {
       const user = await supabase.auth.getUser();

@@ -8,6 +8,7 @@ export interface PersonalInfo {
   website?: string;
   github: string;
   summary: string;
+  profileImage?: string;
 }
 
 export interface Education {
