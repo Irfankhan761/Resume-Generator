@@ -1,11 +1,9 @@
-// src/pages/cv-builder/components/layout/dashboard-layout/dashboard-layout.tsx
 import { useState } from 'react';
 import { Layout } from 'antd';
 import { MenuFoldOutlined, MenuUnfoldOutlined } from '@ant-design/icons';
 import ProfileDropdown from '../../../components/layout/profile/profile-dropdown';
-// Import DesktopSidebar and BottomNavBar directly
-import { DesktopSidebar } from '../sidebar/desktop-sidebar';
-import { BottomNavBar } from '../sidebar/bottom-bar'; // Assuming this path is correct
+import { DesktopSidebar } from '../Sidebar/desktop-sidebar';
+import { BottomNavBar } from '../Sidebar/bottom-bar';
 import type { CVSection } from '@routes/cv-builder/types/types';
 
 const { Content, Sider } = Layout;
