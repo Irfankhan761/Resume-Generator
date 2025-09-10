@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Card, Button, Input, Upload, message } from 'antd';
+import { Card, Button, Input, message } from 'antd';
 import { supabase } from 'core/lib/supabaseClient';
 
 import ProfilePictureUploader from './profile-picture-uploader';
@@ -22,7 +22,7 @@ const ProfileSettingsCard = ({
   );
   const [isSaving, setIsSaving] = useState(false);
   const [isImageUploadingInternal, setIsImageUploadingInternal] =
-    useState(false);
+    useState(false); // Manages loading state for the uploader
 
   useEffect(() => {
     if (initialUser) {
@@ -31,18 +31,18 @@ const ProfileSettingsCard = ({
     }
   }, [initialUser]);
 
-  const handleImageUploadSuccess = (publicUrl: string) => {
+  // Updated to handle `null` for image removal
+  const handleImageUploadSuccess = (publicUrl: string | null) => {
     setUploadedStorageUrl(publicUrl);
-    setDisplayImageUrl(publicUrl);
+    setDisplayImageUrl(publicUrl || undefined); // Display undefined if removed
   };
 
   const handleSaveChanges = async () => {
     setIsSaving(true);
     let updates: { [key: string]: any } = {};
-    if (
-      uploadedStorageUrl &&
-      uploadedStorageUrl !== initialUser?.user_metadata?.avatar_url
-    ) {
+
+    // Check if avatar changed (including removal)
+    if (uploadedStorageUrl !== initialUser?.user_metadata?.avatar_url) {
       updates.avatar_url = uploadedStorageUrl;
     }
 
@@ -67,9 +67,8 @@ const ProfileSettingsCard = ({
     } else {
       if (data.user) {
         onUserUpdate(data.user);
-        if (uploadedStorageUrl) {
-          setUploadedStorageUrl(null);
-        }
+        // Reset uploadedStorageUrl after successful save
+        setUploadedStorageUrl(null);
         setDisplayImageUrl(data.user.user_metadata?.avatar_url);
         setEditableUsername(data.user.user_metadata?.username || '');
       }
@@ -84,7 +83,10 @@ const ProfileSettingsCard = ({
     const avatarChanged =
       uploadedStorageUrl !== null &&
       uploadedStorageUrl !== initialUser?.user_metadata?.avatar_url;
-    return usernameChanged || avatarChanged;
+    // Also consider if an image was removed (uploadedStorageUrl is null, but initialUser had an avatar)
+    const avatarRemoved =
+      uploadedStorageUrl === null && initialUser?.user_metadata?.avatar_url;
+    return usernameChanged || avatarChanged || avatarRemoved;
   }, [editableUsername, uploadedStorageUrl, initialUser]);
 
   return (
@@ -95,10 +97,13 @@ const ProfileSettingsCard = ({
       <div className="flex items-center space-x-6 mb-8">
         <ProfilePictureUploader
           initialImageUrl={displayImageUrl}
-          userId={initialUser?.id} // Pass the user ID for unique storage paths
+          userId={initialUser?.id}
           onUploadSuccess={handleImageUploadSuccess}
-          loading={isImageUploadingInternal} // Pass internal loading state to uploader
+          onUploadStart={() => setIsImageUploadingInternal(true)}
+          onUploadEnd={() => setIsImageUploadingInternal(false)}
+          loading={isImageUploadingInternal} // Pass internal loading state to the uploader
         />
+
         <div>
           <h2 className="text-2xl font-semibold text-gray-800">
             {editableUsername || initialUser?.email?.split('@')[0]}
@@ -164,7 +169,7 @@ const ProfileSettingsCard = ({
           <Button
             type="primary"
             onClick={handleSaveChanges}
-            loading={isSaving || isImageUploadingInternal} // Disable save button if image is being uploaded
+            loading={isSaving || isImageUploadingInternal}
             className="bg-blue-600 hover:bg-blue-700"
             disabled={!hasChanges || isSaving || isImageUploadingInternal}
           >

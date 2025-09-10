@@ -1,24 +1,37 @@
 import React, { useState, useCallback, useRef } from 'react';
-import { Upload, message, Modal, Slider, Typography, Space } from 'antd';
+import {
+  Upload,
+  message,
+  Modal,
+  Slider,
+  Typography,
+  Space,
+  Button,
+} from 'antd';
 import {
   UserOutlined,
   LoadingOutlined,
   RotateRightOutlined,
   ZoomOutOutlined,
+  EditOutlined,
+  DeleteOutlined,
+  UploadOutlined,
 } from '@ant-design/icons';
 import { Avatar } from 'antd';
 import Cropper from 'react-easy-crop';
 import type { UploadChangeParam } from 'antd/es/upload';
 import type { RcFile } from 'antd/es/upload/interface';
-import { supabase } from 'core/lib/supabaseClient'; // Ensure this path is correct
+import { supabase } from 'core/lib/supabaseClient';
 
 const { Text } = Typography;
 
 interface ProfilePictureUploaderProps {
   initialImageUrl?: string;
   userId: string;
-  onUploadSuccess: (publicUrl: string) => void;
+  onUploadSuccess: (publicUrl: string | null) => void;
   loading: boolean;
+  onUploadStart?: () => void;
+  onUploadEnd?: () => void;
 }
 
 const getBase64 = (img: RcFile, callback: (url: string) => void) => {
@@ -32,7 +45,7 @@ const createImage = (url: string): Promise<HTMLImageElement> =>
     const image = new Image();
     image.addEventListener('load', () => resolve(image));
     image.addEventListener('error', (error) => reject(error));
-    image.setAttribute('crossOrigin', 'anonymous'); // needed to avoid cross-origin issues on CodeSandbox
+    image.setAttribute('crossOrigin', 'anonymous');
     image.src = url;
   });
 
@@ -51,27 +64,21 @@ const getCroppedImg = async (
 
   const rotRad = (rotation * Math.PI) / 180;
 
-  // calculate bounding box of the rotated image
   const { width: bBoxWidth, height: bBoxHeight } = rotateSize(
     image.width,
     image.height,
     rotation
   );
 
-  // set canvas size to match the bounding box
   canvas.width = bBoxWidth;
   canvas.height = bBoxHeight;
 
-  // translate canvas origin to the center of the image
   ctx.translate(bBoxWidth / 2, bBoxHeight / 2);
   ctx.rotate(rotRad);
   ctx.translate(-image.width / 2, -image.height / 2);
 
-  // draw rotated image
   ctx.drawImage(image, 0, 0);
 
-  // croppedAreaPixels values are relative to the rotated image
-  // so we need to translate them back to the original image context
   const data = ctx.getImageData(
     croppedAreaPixels.x,
     croppedAreaPixels.y,
@@ -79,11 +86,9 @@ const getCroppedImg = async (
     croppedAreaPixels.height
   );
 
-  // set canvas width to final desired cropped image size - this will clear the canvas
   canvas.width = croppedAreaPixels.width;
   canvas.height = croppedAreaPixels.height;
 
-  // paste generated rotated image at the top left corner
   ctx.putImageData(data, 0, 0);
 
   return new Promise<Blob | null>((resolve) => {
@@ -112,22 +117,48 @@ const ProfilePictureUploader: React.FC<ProfilePictureUploaderProps> = ({
   userId,
   onUploadSuccess,
   loading,
+  onUploadStart,
+  onUploadEnd,
 }) => {
   const [modalVisible, setModalVisible] = useState(false);
-  const [imageSrc, setImageSrc] = useState<string | null>(null);
+  const [cropperImageSrc, setCropperImageSrc] = useState<string | null>(null);
   const [crop, setCrop] = useState({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
   const [rotation, setRotation] = useState(0);
   const [croppedAreaPixels, setCroppedAreaPixels] = useState<any>(null);
-  const [uploadingImage, setUploadingImage] = useState(false);
   const fileRef = useRef<RcFile | null>(null);
+  const [isHovered, setIsHovered] = useState(false);
+
+  const resetCropperAdjustments = () => {
+    setCrop({ x: 0, y: 0 });
+    setZoom(1);
+    setRotation(0);
+    setCroppedAreaPixels(null);
+  };
+
+  const resetCropperState = () => {
+    setCropperImageSrc(null);
+    resetCropperAdjustments();
+    fileRef.current = null;
+  };
+
+  const handleOpenModal = (imageToCrop?: string) => {
+    if (imageToCrop) {
+      setCropperImageSrc(imageToCrop);
+    } else {
+      setCropperImageSrc(null);
+    }
+    resetCropperAdjustments();
+    setModalVisible(true);
+  };
 
   const handleFileChange = (info: UploadChangeParam) => {
     if (info.file.status === 'done') {
       const file = info.file.originFileObj as RcFile;
       fileRef.current = file;
       getBase64(file, (url) => {
-        setImageSrc(url);
+        setCropperImageSrc(url);
+        resetCropperAdjustments();
         setModalVisible(true);
       });
     } else if (info.file.status === 'error') {
@@ -143,33 +174,32 @@ const ProfilePictureUploader: React.FC<ProfilePictureUploaderProps> = ({
   );
 
   const handleOk = async () => {
-    if (!imageSrc || !croppedAreaPixels || !fileRef.current) {
+    if (!cropperImageSrc || !croppedAreaPixels) {
       message.error('No image selected or cropped area defined.');
       return;
     }
 
-    setUploadingImage(true);
+    onUploadStart?.();
     try {
       const croppedBlob = await getCroppedImg(
-        imageSrc,
+        cropperImageSrc,
         croppedAreaPixels,
         rotation
       );
 
       if (!croppedBlob) {
         message.error('Failed to crop image.');
-        setUploadingImage(false);
         return;
       }
 
-      const fileName = `${userId}/${Date.now()}-${fileRef.current.name}`;
-
+      const originalFileName = fileRef.current?.name || 'avatar.jpeg';
+      const fileName = `${userId}/${Date.now()}-${originalFileName}`;
       const { error: uploadError } = await supabase.storage
         .from('avatars')
         .upload(fileName, croppedBlob, {
           cacheControl: '3600',
           upsert: true,
-          contentType: 'image/jpeg', // Ensure correct content type for blobs
+          contentType: 'image/jpeg',
         });
 
       if (uploadError) {
@@ -179,7 +209,6 @@ const ProfilePictureUploader: React.FC<ProfilePictureUploaderProps> = ({
           uploadError
         );
         message.error('Failed to upload image: ' + uploadError.message);
-        setUploadingImage(false);
         return;
       }
 
@@ -190,7 +219,6 @@ const ProfilePictureUploader: React.FC<ProfilePictureUploaderProps> = ({
       if (!publicURLData || !publicURLData.publicUrl) {
         console.error('Failed to get public URL for uploaded image.');
         message.error('Failed to get public URL for image.');
-        setUploadingImage(false);
         return;
       }
 
@@ -204,7 +232,7 @@ const ProfilePictureUploader: React.FC<ProfilePictureUploaderProps> = ({
       console.error('General upload error:', error.message);
       message.error('An unexpected error occurred during image upload.');
     } finally {
-      setUploadingImage(false);
+      onUploadEnd?.();
     }
   };
 
@@ -213,119 +241,233 @@ const ProfilePictureUploader: React.FC<ProfilePictureUploaderProps> = ({
     resetCropperState();
   };
 
-  const resetCropperState = () => {
-    setImageSrc(null);
-    setCrop({ x: 0, y: 0 });
-    setZoom(1);
-    setRotation(0);
-    setCroppedAreaPixels(null);
-    fileRef.current = null;
-  };
+  const handleRemovePicture = async () => {
+    if (!initialImageUrl) {
+      message.info('No profile picture to remove.');
+      return;
+    }
 
-  const uploadButton = (
-    <div>
-      {loading || uploadingImage ? <LoadingOutlined /> : <UserOutlined />}
-      <div style={{ marginTop: 8 }}>
-        {loading || uploadingImage ? 'Uploading' : 'Change'}
-      </div>
-    </div>
-  );
+    Modal.confirm({
+      title: 'Confirm Removal',
+      content:
+        'Are you sure you want to remove your profile picture? This action cannot be undone.',
+      okText: 'Remove',
+      okType: 'danger',
+      onOk: async () => {
+        onUploadStart?.();
+        try {
+          const urlParts = initialImageUrl.split('/');
+          const bucketName = 'avatars';
+          const filePathIndex = urlParts.findIndex(
+            (part) => part === bucketName
+          );
+          const filePath = urlParts.slice(filePathIndex + 1).join('/');
+
+          if (!filePath) {
+            message.error('Could not determine file path for deletion.');
+            return;
+          }
+
+          const { error: deleteError } = await supabase.storage
+            .from(bucketName)
+            .remove([filePath]);
+
+          if (deleteError) {
+            console.error(
+              'Supabase Storage Deletion Error:',
+              deleteError.message,
+              deleteError
+            );
+            message.error('Failed to remove image: ' + deleteError.message);
+            return;
+          }
+
+          onUploadSuccess(null);
+          message.success(
+            'Profile picture removed successfully! Click "Save Changes" to update your profile.'
+          );
+          setModalVisible(false);
+          resetCropperState();
+        } catch (error: any) {
+          console.error('General removal error:', error.message);
+          message.error('An unexpected error occurred during image removal.');
+        } finally {
+          onUploadEnd?.();
+        }
+      },
+      okButtonProps: { loading: loading },
+    });
+  };
 
   return (
     <>
-      <Upload
-        name="avatar"
-        listType="picture-circle"
-        className="avatar-uploader"
-        showUploadList={false}
-        accept="image/*"
-        customRequest={({ file, onSuccess }) => {
-          // This customRequest allows us to intercept the file before Ant Design's default upload.
-          // We mark it as 'done' so onChange is triggered, and handle the actual upload in handleOk.
-          setTimeout(() => {
-            if (onSuccess) onSuccess('ok');
-          }, 0);
+      <div
+        style={{
+          position: 'relative',
+          width: 100,
+          height: 100,
+          cursor: 'pointer',
         }}
-        onChange={handleFileChange}
-        disabled={loading || uploadingImage}
+        onMouseEnter={() => setIsHovered(true)}
+        onMouseLeave={() => setIsHovered(false)}
+        onClick={() => handleOpenModal(initialImageUrl)}
       >
-        {initialImageUrl && !loading && !uploadingImage ? (
+        {initialImageUrl && !loading ? (
           <Avatar size={100} src={initialImageUrl} />
         ) : (
-          uploadButton
+          <Avatar
+            size={100}
+            icon={loading ? <LoadingOutlined /> : <UserOutlined />}
+          />
         )}
-      </Upload>
+
+        {/* Hover overlay and icon */}
+        {isHovered && !loading && (
+          <div
+            style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              width: '100%',
+              height: '100%',
+              borderRadius: '50%',
+              backgroundColor: 'rgba(0, 0, 0, 0.5)',
+              display: 'flex',
+              justifyContent: 'center',
+              alignItems: 'center',
+              color: 'white',
+              fontSize: 24,
+            }}
+          >
+            <EditOutlined />
+          </div>
+        )}
+      </div>
 
       <Modal
-        title="Crop and Adjust Image"
+        title="Edit Profile Picture"
         open={modalVisible}
         onOk={handleOk}
         onCancel={handleCancel}
         width={700}
-        confirmLoading={uploadingImage}
-        okText={uploadingImage ? 'Uploading...' : 'Apply & Upload'}
-        cancelButtonProps={{ disabled: uploadingImage }}
-        maskClosable={!uploadingImage}
-        closable={!uploadingImage}
-      >
-        {imageSrc && (
-          <div
-            style={{
-              position: 'relative',
-              width: '100%',
-              height: 400,
-              background: '#333',
+        confirmLoading={loading}
+        okText={loading ? 'Processing...' : 'Apply & Save'}
+        cancelButtonProps={{ disabled: loading }}
+        maskClosable={!loading}
+        closable={!loading}
+        footer={[
+          initialImageUrl && (
+            <Button
+              key="remove"
+              danger
+              onClick={handleRemovePicture}
+              disabled={loading}
+              icon={<DeleteOutlined />}
+            >
+              Remove Picture
+            </Button>
+          ),
+          <Upload
+            key="upload-new"
+            name="avatar-new-modal"
+            showUploadList={false}
+            accept="image/*"
+            customRequest={({ file, onSuccess }) => {
+              setTimeout(() => {
+                if (onSuccess) onSuccess('ok');
+              }, 0);
             }}
+            onChange={handleFileChange}
+            disabled={loading}
           >
-            <Cropper
-              image={imageSrc}
-              crop={crop}
-              zoom={zoom}
-              rotation={rotation}
-              aspect={1} // Square aspect ratio for avatar
-              onCropChange={setCrop}
-              onZoomChange={setZoom}
-              onRotationChange={setRotation}
-              onCropComplete={onCropComplete}
-              cropShape="round" // Make it round for avatars
-              showGrid={false}
-            />
+            <Button disabled={loading} icon={<UploadOutlined />}>
+              Upload New
+            </Button>
+          </Upload>,
+          <Button key="cancel" onClick={handleCancel} disabled={loading}>
+            Cancel
+          </Button>,
+          <Button
+            key="submit"
+            type="primary"
+            onClick={handleOk}
+            loading={loading}
+            disabled={!cropperImageSrc || loading}
+          >
+            {loading ? 'Processing...' : 'Apply & Save'}
+          </Button>,
+        ]}
+      >
+        {cropperImageSrc ? (
+          <>
+            <div
+              style={{
+                position: 'relative',
+                width: '100%',
+                height: 400,
+                background: '#333',
+              }}
+            >
+              <Cropper
+                image={cropperImageSrc}
+                crop={crop}
+                zoom={zoom}
+                rotation={rotation}
+                aspect={1}
+                onCropChange={setCrop}
+                onZoomChange={setZoom}
+                onRotationChange={setRotation}
+                onCropComplete={onCropComplete}
+                cropShape="round"
+                showGrid={false}
+              />
+            </div>
+            <div style={{ padding: '20px 0' }}>
+              <Space direction="vertical" style={{ width: '100%' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <ZoomOutOutlined style={{ fontSize: 16 }} />
+                  <Slider
+                    min={1}
+                    max={3}
+                    step={0.1}
+                    value={zoom}
+                    onChange={setZoom}
+                    style={{ flexGrow: 1 }}
+                    tooltip={{
+                      formatter: (val) => `Zoom: ${val?.toFixed(1)}x`,
+                    }}
+                    disabled={loading}
+                  />
+                  <ZoomOutOutlined style={{ fontSize: 16 }} />
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <RotateRightOutlined style={{ fontSize: 16 }} />
+                  <Slider
+                    min={0}
+                    max={360}
+                    step={1}
+                    value={rotation}
+                    onChange={setRotation}
+                    style={{ flexGrow: 1 }}
+                    tooltip={{ formatter: (val) => `Rotation: ${val}°` }}
+                    disabled={loading}
+                  />
+                  <Text style={{ minWidth: 40, textAlign: 'right' }}>
+                    {rotation}°
+                  </Text>
+                </div>
+              </Space>
+            </div>
+          </>
+        ) : (
+          <div style={{ textAlign: 'center', padding: '50px 0' }}>
+            <p>No image selected for cropping.</p>
+            <p>
+              Use the "Upload New" button below to select a picture, or click
+              "Cancel".
+            </p>
           </div>
         )}
-        <div style={{ padding: '20px 0' }}>
-          <Space direction="vertical" style={{ width: '100%' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <ZoomOutOutlined style={{ fontSize: 16 }} />
-              <Slider
-                min={1}
-                max={3}
-                step={0.1}
-                value={zoom}
-                onChange={setZoom}
-                style={{ flexGrow: 1 }}
-                tooltip={{ formatter: (val) => `Zoom: ${val?.toFixed(1)}x` }}
-                disabled={uploadingImage}
-              />
-              <ZoomOutOutlined style={{ fontSize: 16 }} />
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <RotateRightOutlined style={{ fontSize: 16 }} />
-              <Slider
-                min={0}
-                max={360}
-                step={1}
-                value={rotation}
-                onChange={setRotation}
-                style={{ flexGrow: 1 }}
-                tooltip={{ formatter: (val) => `Rotation: ${val}°` }}
-                disabled={uploadingImage}
-              />
-              <Text style={{ minWidth: 40, textAlign: 'right' }}>
-                {rotation}°
-              </Text>
-            </div>
-          </Space>
-        </div>
       </Modal>
     </>
   );
