@@ -10,6 +10,7 @@ import { educationService } from '../../../services/education-services';
 const { Title } = Typography;
 const { confirm } = Modal;
 
+// Define the interface for the props that EducationForm will accept
 interface EducationFormProps {
   onChange: (data: Education[]) => void;
 }
@@ -23,8 +24,8 @@ export const EducationForm: React.FC<EducationFormProps> = ({ onChange }) => {
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const didLoadRef = useRef(false);
 
+  // Use a ref to hold the latest onChange function to avoid dependency issues in useCallback
   const onChangeRef = useRef(onChange);
-
   useEffect(() => {
     onChangeRef.current = onChange;
   }, [onChange]);
@@ -35,7 +36,6 @@ export const EducationForm: React.FC<EducationFormProps> = ({ onChange }) => {
       const { data: savedData, error } = await educationService.loadEducation();
 
       if (error) {
-        // Only show error if it's not a "no data found" error
         if ((error as any).code !== 'PGRST116') {
           console.error('Failed to load education details:', error);
           message.error('Failed to load education details.');
@@ -43,8 +43,8 @@ export const EducationForm: React.FC<EducationFormProps> = ({ onChange }) => {
       }
 
       const loadedList = savedData || [];
-      console.log('Loaded education list:', loadedList);
       setEducationList(loadedList);
+      // Call the parent component's onChange with the loaded data
       onChangeRef.current(loadedList);
     } catch (err) {
       console.error('Error loading education:', err);
@@ -88,7 +88,6 @@ export const EducationForm: React.FC<EducationFormProps> = ({ onChange }) => {
         endDate: recordToEdit.endDate ? dayjs(recordToEdit.endDate) : null,
       };
 
-      console.log('Setting form values for edit:', formValues);
       modalForm.setFieldsValue(formValues);
       setIsModalOpen(true);
     },
@@ -101,6 +100,7 @@ export const EducationForm: React.FC<EducationFormProps> = ({ onChange }) => {
     modalForm.resetFields();
   }, [modalForm]);
 
+  // Function to reload data and notify parent of changes
   const reloadData = useCallback(async () => {
     await loadData(false);
   }, [loadData]);
@@ -110,18 +110,13 @@ export const EducationForm: React.FC<EducationFormProps> = ({ onChange }) => {
       try {
         await modalForm.validateFields();
         const modalValues = modalForm.getFieldsValue();
-
-        console.log('Form values before saving:', modalValues);
-
         setIsSaving(true);
 
-        // Determine the ID for the item
         const currentId =
           editingIndex !== null
             ? educationList[editingIndex].id
             : `temp-${Date.now()}`;
 
-        // Format the item for saving
         const itemToSave: Education = {
           id: currentId,
           degreeTitle: modalValues.degreeTitle?.trim() || '',
@@ -141,18 +136,11 @@ export const EducationForm: React.FC<EducationFormProps> = ({ onChange }) => {
           isCurrent: Boolean(modalValues.isCurrent),
         };
 
-        console.log('Item to save:', itemToSave);
-
-        const { error, data } = await educationService.saveEducation(
-          itemToSave
-        );
+        const { error } = await educationService.saveEducation(itemToSave);
 
         if (error) {
-          console.error('Save error:', error);
           throw new Error(error.message || 'Failed to save education');
         }
-
-        console.log('Save successful:', data);
 
         message.success(
           `Education ${
@@ -160,7 +148,6 @@ export const EducationForm: React.FC<EducationFormProps> = ({ onChange }) => {
           } successfully!`
         );
 
-        // Reload data to reflect changes
         await reloadData();
 
         if (continueAdding) {
@@ -234,6 +221,7 @@ export const EducationForm: React.FC<EducationFormProps> = ({ onChange }) => {
     [educationList, reloadData, handleCancel]
   );
 
+  // Memoized handlers for the modal
   const onSave = useCallback(() => handleModalSave(false), [handleModalSave]);
   const onSaveAndContinue = useCallback(
     () => handleModalSave(true),
@@ -267,7 +255,7 @@ export const EducationForm: React.FC<EducationFormProps> = ({ onChange }) => {
         }
         extra={
           <Button onClick={showAddModal} type="primary" icon={<PlusOutlined />}>
-            Add Education
+            Add
           </Button>
         }
       >

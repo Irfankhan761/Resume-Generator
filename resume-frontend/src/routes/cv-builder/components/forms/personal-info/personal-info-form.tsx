@@ -1,5 +1,12 @@
 // src/components/personal-info-form/PersonalInfoForm.tsx
-import React, { useCallback, useEffect, useRef, useState, memo } from 'react';
+import React, {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  memo,
+  useLayoutEffect,
+} from 'react';
 import {
   Card,
   Form,
@@ -32,6 +39,26 @@ import { personalInfoService } from '../../../services/personal-info-sevice';
 import CvProfilePictureUploader from './cv-profile-picture';
 
 const { Title, Text } = Typography;
+
+// --- Custom Hook for Breakpoints ---
+const useBreakpoint = (breakpoint = 768) => {
+  const [isBelowBreakpoint, setIsBelowBreakpoint] = useState(
+    window.innerWidth < breakpoint
+  );
+
+  useLayoutEffect(() => {
+    const handleResize = () => {
+      setIsBelowBreakpoint(window.innerWidth < breakpoint);
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, [breakpoint]);
+
+  return isBelowBreakpoint;
+};
+
+// --- Component Definition ---
 
 type PersonalInfoData = PersonalInfo & { profileImage?: string };
 
@@ -68,6 +95,8 @@ const PersonalInfoFormComponent: React.FC<PersonalInfoFormProps> = ({
   const [currentProfileImage, setCurrentProfileImage] = useState<
     string | undefined
   >(data.profileImage);
+
+  const isMobile = useBreakpoint(768);
 
   const isMounted = useRef(false);
   const onChangeRef = useRef(onChange);
@@ -131,20 +160,11 @@ const PersonalInfoFormComponent: React.FC<PersonalInfoFormProps> = ({
     }
   }, [form, currentProfileImage]);
 
-  /**
-   * This handler persists only the profile image right away so reloads
-   * don't bring back the previous value.
-   *
-   * It now surfaces the actual error message from the service (if any),
-   * and logs the full error to console for debugging.
-   */
   const handleProfileImageUploadSuccess = useCallback(
     async (publicUrl: string | null) => {
-      // Update immediate UI state
       const newProfileImage = publicUrl || undefined;
       setCurrentProfileImage(newProfileImage);
 
-      // Update the form data and notify parent
       const formData = form.getFieldsValue();
       const updatedData = {
         ...formData,
@@ -152,7 +172,6 @@ const PersonalInfoFormComponent: React.FC<PersonalInfoFormProps> = ({
       };
       onChangeRef.current(updatedData);
 
-      // Persist immediately so reload doesn't restore the old URL
       setSaving(true);
       try {
         const { error } = await personalInfoService.updateProfileImage(
@@ -160,19 +179,18 @@ const PersonalInfoFormComponent: React.FC<PersonalInfoFormProps> = ({
         );
 
         if (error) {
-          // If Supabase provides a message, show it; otherwise stringify the error
           const pretty =
             (error &&
-              (error.message || error.error || JSON.stringify(error))) ||
+              (error.message ||
+                (error as any).error ||
+                JSON.stringify(error))) ||
             'Unknown error';
           console.error('Failed to persist profile image change:', error);
           message.error(`Failed to persist profile image change: ${pretty}`);
         } else {
-          if (publicUrl) {
-            message.success('Profile picture saved.');
-          } else {
-            message.success('Profile picture removed.');
-          }
+          message.success(
+            `Profile picture ${publicUrl ? 'saved' : 'removed'}.`
+          );
         }
       } catch (err) {
         console.error('Unexpected error saving profile image change:', err);
@@ -184,8 +202,6 @@ const PersonalInfoFormComponent: React.FC<PersonalInfoFormProps> = ({
       } finally {
         setSaving(false);
       }
-
-      console.log('Profile image updated:', newProfileImage);
     },
     [form]
   );
@@ -248,7 +264,7 @@ const PersonalInfoFormComponent: React.FC<PersonalInfoFormProps> = ({
           {}
         );
         form.setFieldsValue(resetValues);
-        handleValuesChange(); // Trigger parent update
+        handleValuesChange();
       },
     [form, handleValuesChange]
   );
@@ -267,26 +283,47 @@ const PersonalInfoFormComponent: React.FC<PersonalInfoFormProps> = ({
   return (
     <Card
       title={
-        <Title level={4} style={{ margin: 0 }}>
-          Personal Information
-        </Title>
-      }
-      extra={
-        <Button
-          type="primary"
-          icon={<SaveOutlined />}
-          loading={saving || isUploadingProfileImage}
-          onClick={handleSave}
-          size="large"
+        <Row
+          justify={isMobile ? 'center' : 'space-between'}
+          align="middle"
+          gutter={[16, 16]}
         >
-          {saving ? 'Saving...' : 'Save Changes'}
-        </Button>
+          <Col>
+            <Title level={4} style={{ margin: 0 }}>
+              Personal Information
+            </Title>
+          </Col>
+          <Col>
+            <Button
+              type="primary"
+              icon={<SaveOutlined />}
+              loading={saving || isUploadingProfileImage}
+              onClick={handleSave}
+              size="large"
+            >
+              {!isMobile && (saving ? 'Saving...' : 'Save Changes')}
+            </Button>
+          </Col>
+        </Row>
       }
       className="mb-8 shadow-sm"
     >
       <Form form={form} layout="vertical" onValuesChange={handleValuesChange}>
         <Row gutter={32}>
-          <Col xs={24} md={8}>
+          <Col
+            xs={24}
+            md={8}
+            style={
+              isMobile
+                ? {
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    marginBottom: '24px',
+                  }
+                : {}
+            }
+          >
             <Title level={5}>Profile Picture</Title>
             <CvProfilePictureUploader
               initialImageUrl={currentProfileImage}
@@ -296,7 +333,14 @@ const PersonalInfoFormComponent: React.FC<PersonalInfoFormProps> = ({
               onUploadStart={() => setIsUploadingProfileImage(true)}
               onUploadEnd={() => setIsUploadingProfileImage(false)}
             />
-            <Text type="secondary" style={{ display: 'block', marginTop: 8 }}>
+            <Text
+              type="secondary"
+              style={{
+                display: 'block',
+                marginTop: 8,
+                textAlign: 'center',
+              }}
+            >
               Recommended: Square image, max 5MB (JPG, PNG).
             </Text>
           </Col>
@@ -307,16 +351,27 @@ const PersonalInfoFormComponent: React.FC<PersonalInfoFormProps> = ({
 
         <Divider />
 
-        <div className="flex justify-between items-center mb-4">
-          <Title level={5}>Optional Information</Title>
-          <Button
-            type="dashed"
-            icon={<PlusOutlined />}
-            onClick={() => setIsModalVisible(true)}
-          >
-            Add / Edit Optional Details
-          </Button>
-        </div>
+        <Row
+          justify={isMobile ? 'center' : 'space-between'}
+          align="middle"
+          gutter={[16, 16]}
+          className="mb-4"
+        >
+          <Col>
+            <Title level={5} style={{ margin: 0 }}>
+              Optional Information
+            </Title>
+          </Col>
+          <Col>
+            <Button
+              type="dashed"
+              icon={<PlusOutlined />}
+              onClick={() => setIsModalVisible(true)}
+            >
+              Add / Edit Optional Details
+            </Button>
+          </Col>
+        </Row>
 
         {visibility.jobTitle && (
           <OptionalInfoSection

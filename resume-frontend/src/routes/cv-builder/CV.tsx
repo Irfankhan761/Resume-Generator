@@ -24,6 +24,25 @@ export type CVSection =
 const AUTO_SAVE_KEY = 'cv_autoSaveEnabled';
 const REAL_TIME_PREVIEW_KEY = 'cv_realTimePreviewEnabled';
 
+// --- NEW ---
+// Custom hook to detect mobile screen sizes.
+const useIsMobile = (breakpoint = 768) => {
+  const [isMobile, setIsMobile] = useState(window.innerWidth < breakpoint);
+
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobile(window.innerWidth < breakpoint);
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => {
+      window.removeEventListener('resize', handleResize);
+    };
+  }, [breakpoint]);
+
+  return isMobile;
+};
+
 const initialData: CVData = {
   personalInfo: {
     fullName: 'Irfan Khan',
@@ -53,6 +72,9 @@ const formatLastSaved = (date: Date | null) => {
 };
 
 export const CV = () => {
+  // --- MODIFIED ---
+  // Use the hook to get the mobile status.
+  const isMobile = useIsMobile();
   const [activeSection, setActiveSection] =
     useState<CVSection>('Personal Info');
   const [cvData, setCVData] = useState<CVData>(initialData);
@@ -340,10 +362,13 @@ export const CV = () => {
         )}
       </div>
 
+      {/* --- MODIFIED --- */}
+      {/* The style is now dynamic. On mobile screens (width < 768px), the bottom will be 80px.
+          Otherwise, it will fall back to the default of 24px. */}
       <FloatButton.Group
         trigger="click"
         type="primary"
-        style={{ right: 24, bottom: 24 }}
+        style={{ right: 24, bottom: isMobile ? 80 : 24 }}
         icon={<Save />}
       >
         <Tooltip title="Export as PDF" placement="left">

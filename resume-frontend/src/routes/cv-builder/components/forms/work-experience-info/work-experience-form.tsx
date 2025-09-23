@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef, memo } from 'react';
 import { Card, Button, Typography, message, Spin, Modal, Form } from 'antd';
 import { PlusOutlined } from '@ant-design/icons';
-import { BriefcaseBusinessIcon } from 'lucide-react';
 import type { WorkExperience } from '@routes/cv-builder/types/types';
 import dayjs, { Dayjs } from 'dayjs';
 import { WorkExperienceList } from './work-experience-list';
@@ -32,7 +31,7 @@ const WorkExperienceFormComponent: React.FC<WorkExperienceFormProps> = ({
   const [isSaving, setIsSaving] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
-  const isMounted = useRef(false);
+  const didLoadRef = useRef(false);
 
   const onChangeRef = useRef(onChange);
 
@@ -40,14 +39,13 @@ const WorkExperienceFormComponent: React.FC<WorkExperienceFormProps> = ({
     onChangeRef.current = onChange;
   }, [onChange]);
 
-  const loadData = useCallback(async (showLoadingSpinner = true) => {
-    if (showLoadingSpinner) setLoading(true);
+  const loadData = useCallback(async (showLoading = true) => {
     try {
+      if (showLoading) setLoading(true);
       const { data: savedData, error } =
         await workExperienceService.loadWorkExperience();
 
       if (error) {
-        // Only show error if it's not a "no data found" error
         if ((error as any).code !== 'PGRST116') {
           console.error('Failed to load work experience:', error);
           message.error('Failed to load work experience.');
@@ -55,24 +53,20 @@ const WorkExperienceFormComponent: React.FC<WorkExperienceFormProps> = ({
       }
 
       const loadedList = savedData || [];
-      console.log('Loaded work experience list:', loadedList);
       setExperienceList(loadedList);
       onChangeRef.current(loadedList);
     } catch (err) {
       console.error('Error loading work experience:', err);
-      message.error(
-        err instanceof Error ? err.message : 'An unknown error occurred.'
-      );
+      message.error('Failed to load work experience.');
     } finally {
-      if (showLoadingSpinner) setLoading(false);
+      if (showLoading) setLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    if (!isMounted.current) {
-      isMounted.current = true;
-      loadData();
-    }
+    if (didLoadRef.current) return;
+    didLoadRef.current = true;
+    loadData();
   }, [loadData]);
 
   const showAddModal = useCallback(() => {
@@ -106,7 +100,6 @@ const WorkExperienceFormComponent: React.FC<WorkExperienceFormProps> = ({
               : [''],
         };
 
-        console.log('Setting form values for edit:', formValues);
         modalForm.setFieldsValue(formValues);
         setIsModalOpen(true);
       }
@@ -120,23 +113,22 @@ const WorkExperienceFormComponent: React.FC<WorkExperienceFormProps> = ({
     modalForm.resetFields();
   }, [modalForm]);
 
+  const reloadData = useCallback(async () => {
+    await loadData(false);
+  }, [loadData]);
+
   const handleModalSave = useCallback(
     async (continueAdding = false) => {
       try {
         await modalForm.validateFields();
         const modalValues = modalForm.getFieldsValue();
-
-        console.log('Form values before saving:', modalValues);
-
         setIsSaving(true);
 
-        // Determine the ID for the item
         const currentId =
           editingIndex !== null
             ? experienceList[editingIndex].id
             : `temp-${Date.now()}`;
 
-        // Format the item for saving
         const itemToSave: WorkExperience = {
           id: currentId,
           company: modalValues.company?.trim() || '',
@@ -155,18 +147,13 @@ const WorkExperienceFormComponent: React.FC<WorkExperienceFormProps> = ({
           ),
         };
 
-        console.log('Item to save:', itemToSave);
-
-        const { error, data } = await workExperienceService.saveWorkExperience(
+        const { error } = await workExperienceService.saveWorkExperience(
           itemToSave
         );
 
         if (error) {
-          console.error('Save error:', error);
           throw new Error(error.message || 'Failed to save work experience');
         }
-
-        console.log('Save successful:', data);
 
         message.success(
           `Work experience ${
@@ -174,8 +161,7 @@ const WorkExperienceFormComponent: React.FC<WorkExperienceFormProps> = ({
           } successfully!`
         );
 
-        // Reload data to reflect changes
-        await loadData(false);
+        await reloadData();
 
         if (continueAdding) {
           showAddModal();
@@ -183,9 +169,6 @@ const WorkExperienceFormComponent: React.FC<WorkExperienceFormProps> = ({
           handleCancel();
         }
       } catch (error) {
-        // Don't show error message for validation errors (they have their own UI)
-        if (error && (error as any).errorFields) return;
-
         console.error('Error in handleModalSave:', error);
         message.error(
           error instanceof Error
@@ -200,7 +183,7 @@ const WorkExperienceFormComponent: React.FC<WorkExperienceFormProps> = ({
       modalForm,
       editingIndex,
       experienceList,
-      loadData,
+      reloadData,
       showAddModal,
       handleCancel,
     ]
@@ -217,7 +200,7 @@ const WorkExperienceFormComponent: React.FC<WorkExperienceFormProps> = ({
 
       confirm({
         title: 'Are you sure you want to delete this work experience?',
-        content: `This will permanently remove the position at "${itemToDelete.company}".`,
+        content: 'This action cannot be undone.',
         okText: 'Delete',
         okType: 'danger',
         cancelText: 'Cancel',
@@ -235,7 +218,7 @@ const WorkExperienceFormComponent: React.FC<WorkExperienceFormProps> = ({
             }
 
             message.success('Work experience deleted successfully!');
-            await loadData(false);
+            await reloadData();
             handleCancel();
           } catch (err) {
             console.error('Delete error:', err);
@@ -250,7 +233,7 @@ const WorkExperienceFormComponent: React.FC<WorkExperienceFormProps> = ({
         },
       });
     },
-    [experienceList, loadData, handleCancel]
+    [experienceList, reloadData, handleCancel]
   );
 
   const onSave = useCallback(() => handleModalSave(false), [handleModalSave]);
@@ -276,17 +259,15 @@ const WorkExperienceFormComponent: React.FC<WorkExperienceFormProps> = ({
     <>
       <Card
         className="mb-8"
+        style={{ boxShadow: '0 4px 20px rgba(0, 0, 0, 0.08)', border: 'none' }}
         title={
           <Title level={4} style={{ margin: 0 }}>
-            <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <BriefcaseBusinessIcon size={20} />
-              Work Experience
-            </span>
+            Work Experience
           </Title>
         }
         extra={
           <Button onClick={showAddModal} type="primary" icon={<PlusOutlined />}>
-            Add Experience
+            Add
           </Button>
         }
       >
