@@ -1,46 +1,46 @@
-import { Collapse } from "antd";
-import { PlusOutlined, MinusOutlined } from "@ant-design/icons";
-import React from "react";
+import { Collapse } from 'antd';
+import { PlusOutlined, MinusOutlined } from '@ant-design/icons';
+import React from 'react';
 
 export const FaqSection: React.FC = () => {
   const { Panel } = Collapse;
 
   const faqData = [
     {
-      header: "How long does it take to create a CV?",
+      header: 'How long does it take to create a CV?',
       content:
-        "With our platform, you can create a professional CV in just 15-30 minutes. Our intuitive interface guides you through each step, making the process quick and effortless.",
+        'With our platform, you can create a professional CV in just 15-30 minutes. Our intuitive interface guides you through each step, making the process quick and effortless.',
     },
     {
-      header: "Is my information secure?",
+      header: 'Is my information secure?',
       content:
-        "We use industry-standard 256-bit SSL encryption to protect your personal and professional data. Your information is never shared with third parties without your consent.",
+        'We use industry-standard 256-bit SSL encryption to protect your personal and professional data. Your information is never shared with third parties without your consent.',
     },
     {
-      header: "Can I download my CV?",
+      header: 'Can I download my CV?',
       content:
-        "Yes! You can download your CV in multiple formats including PDF, DOCX, and plain text. Premium users also get access to additional template options.",
+        'Yes! You can download your CV in multiple formats including PDF, DOCX, and plain text. Premium users also get access to additional template options.',
     },
     {
-      header: "Do you offer resume review services?",
+      header: 'Do you offer resume review services?',
       content:
-        "We offer optional professional resume review services where our career experts provide personalized feedback to help optimize your resume for your target industry.",
+        'We offer optional professional resume review services where our career experts provide personalized feedback to help optimize your resume for your target industry.',
     },
     {
-      header: "Can I create multiple versions of my CV?",
+      header: 'Can I create multiple versions of my CV?',
       content:
-        "Absolutely! You can save multiple versions of your CV tailored for different job applications or career paths, all from your dashboard.",
+        'Absolutely! You can save multiple versions of your CV tailored for different job applications or career paths, all from your dashboard.',
     },
   ];
 
   return (
-    <div className="max-w-7xl -mt-28 mx-auto px-4 py-16 md:py-24">
+    <div className="max-w-7xl mx-auto px-4 mb-16 sm:px-6 lg:px-8">
       <div className="text-center mb-12">
         <h2 className="text-4xl md:text-5xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-indigo-600 mb-4">
           Frequently Asked Questions
         </h2>
         <p className="text-lg text-gray-600 max-w-2xl mx-auto">
-          Can't find what you're looking for?{" "}
+          Can't find what you're looking for?{' '}
           <a href="#contact" className="text-blue-600 hover:underline">
             Contact our support team
           </a>

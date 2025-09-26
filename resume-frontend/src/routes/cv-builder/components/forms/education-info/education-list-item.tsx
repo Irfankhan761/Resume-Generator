@@ -1,9 +1,10 @@
 import React from 'react';
-import { Button, Row, Col, Form, Typography } from 'antd';
+import { Button, Row, Col, Typography, Divider, Space } from 'antd';
 import { EditOutlined, DeleteOutlined } from '@ant-design/icons';
 import type { Education } from '@routes/cv-builder/types/types';
+import dayjs from 'dayjs';
 
-const { Text } = Typography;
+const { Text, Title } = Typography;
 
 interface EducationListItemProps {
   education: Education;
@@ -16,49 +17,98 @@ const EducationListItemComponent: React.FC<EducationListItemProps> = ({
   onEdit,
   onDelete,
 }) => {
+  const {
+    degreeTitle,
+    institute,
+    majors,
+    city,
+    startDate,
+    endDate,
+    isCurrent,
+    gpaValue,
+    gpaType,
+  } = education;
+
+  const formattedStartDate = startDate
+    ? dayjs(startDate).format('MMM YYYY')
+    : 'N/A';
+  const formattedEndDate = isCurrent
+    ? 'Present'
+    : endDate
+    ? dayjs(endDate).format('MMM YYYY')
+    : 'N/A';
+
   return (
     <div
       style={{
         background: '#f9fbfd',
         borderRadius: '10px',
         padding: '24px',
+        marginBottom: '16px',
         border: '1px solid #e6f0ff',
-        position: 'relative',
       }}
     >
-      <div
-        style={{
-          position: 'absolute',
-          top: '16px',
-          right: '16px',
-          zIndex: 1,
-          display: 'flex',
-          gap: '8px',
-        }}
-      >
-        <Button type="text" onClick={onEdit} icon={<EditOutlined />} />
-        <Button
-          type="text"
-          danger
-          onClick={onDelete}
-          icon={<DeleteOutlined />}
-        />
-      </div>
-      <Row gutter={24}>
-        <Col xs={24} md={12}>
-          <Form.Item label={<Text strong>Degree Title</Text>}>
-            <Text>{education.degreeTitle}</Text>
-          </Form.Item>
+      {/* Main Header Row - Using Flexbox for alignment */}
+      <Row justify="space-between" align="top" wrap={false} gutter={16}>
+        {/* Title and Institute (takes up remaining space) */}
+        <Col flex="1 1 auto">
+          <Title level={5} style={{ margin: 0, marginBottom: '4px' }}>
+            {degreeTitle}
+          </Title>
+          <Text type="secondary">
+            {institute}, {city}
+          </Text>
         </Col>
-        <Col xs={24} md={12}>
-          <Form.Item label={<Text strong>Institute</Text>}>
-            <Text>{education.institute}</Text>
-          </Form.Item>
+
+        {/* Action Buttons (fixed width) */}
+        <Col flex="0 0 auto">
+          <Space>
+            <Button type="text" onClick={onEdit} icon={<EditOutlined />} />
+            <Button
+              type="text"
+              danger
+              onClick={onDelete}
+              icon={<DeleteOutlined />}
+            />
+          </Space>
         </Col>
+      </Row>
+
+      {/* Dates - displayed below the header */}
+      <Row style={{ marginTop: '8px' }}>
+        <Col>
+          <Text strong>
+            {formattedStartDate} - {formattedEndDate}
+          </Text>
+        </Col>
+      </Row>
+
+      <Divider style={{ margin: '16px 0' }} />
+
+      {/* Additional Details Section */}
+      <Row gutter={[24, 16]}>
+        {/* Majors */}
+        <Col xs={24} sm={12}>
+          <div>
+            <Text strong>Majors</Text>
+          </div>
+          <Text>{majors}</Text>
+        </Col>
+
+        {/* GPA */}
+        {gpaValue && (
+          <Col xs={24} sm={12}>
+            <div>
+              <Text strong>
+                {gpaType === 'percentage' ? 'Percentage' : 'GPA'}
+              </Text>
+            </div>
+            <Text>{gpaValue}</Text>
+          </Col>
+        )}
       </Row>
     </div>
   );
 };
 
-// Wrap component in React.memo to prevent re-renders if props are unchanged
 export const EducationListItem = React.memo(EducationListItemComponent);

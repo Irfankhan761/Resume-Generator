@@ -1,14 +1,18 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import type { CVData } from './types/types';
 import { CVForms } from './components/cv-form';
 import { CVPreviews } from './components/cv-preview';
-import { ArrowDownToLine, Loader2 } from 'lucide-react';
-import { Layout, message } from 'antd';
-import { MenuFoldOutlined, MenuUnfoldOutlined } from '@ant-design/icons';
+import {
+  ArrowDownToLine,
+  Loader2,
+  Save,
+  RefreshCw,
+  Eye,
+  EyeOff,
+} from 'lucide-react';
+import { message, FloatButton, Tooltip } from 'antd';
 import html2pdf from 'html2pdf.js';
-import { Sidebar } from './components/layout/Sidebar/sidebar';
-
-const { Content } = Layout;
+import { DashboardLayout } from './components/layout/dashboard-layout/dashboard-layout';
 
 export type CVSection =
   | 'Personal Info'
@@ -16,6 +20,28 @@ export type CVSection =
   | 'Work Experience'
   | 'Projects'
   | 'Skills';
+
+const AUTO_SAVE_KEY = 'cv_autoSaveEnabled';
+const REAL_TIME_PREVIEW_KEY = 'cv_realTimePreviewEnabled';
+
+// --- NEW ---
+// Custom hook to detect mobile screen sizes.
+const useIsMobile = (breakpoint = 768) => {
+  const [isMobile, setIsMobile] = useState(window.innerWidth < breakpoint);
+
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobile(window.innerWidth < breakpoint);
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => {
+      window.removeEventListener('resize', handleResize);
+    };
+  }, [breakpoint]);
+
+  return isMobile;
+};
 
 const initialData: CVData = {
   personalInfo: {
@@ -36,63 +62,140 @@ const initialData: CVData = {
   skills: [],
 };
 
+const formatLastSaved = (date: Date | null) => {
+  if (!date) return 'Never';
+  const now = new Date();
+  const diff = now.getTime() - date.getTime();
+  if (diff < 60000) return 'Just now';
+  if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`;
+  return date.toLocaleDateString();
+};
+
 export const CV = () => {
+  // --- MODIFIED ---
+  // Use the hook to get the mobile status.
+  const isMobile = useIsMobile();
   const [activeSection, setActiveSection] =
     useState<CVSection>('Personal Info');
   const [cvData, setCVData] = useState<CVData>(initialData);
   const [isSaving, setIsSaving] = useState(false);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const previewRef = useRef<HTMLDivElement>(null);
+  const [isAutoSaving, setIsAutoSaving] = useState(false);
+  const [lastSaved, setLastSaved] = useState<Date | null>(null);
+  const [previewMode, setPreviewMode] = useState(false);
+  const [unsavedChanges, setUnsavedChanges] = useState(false);
 
-  const handleDataChange = useCallback((newData: CVData) => {
-    setCVData(newData);
-    localStorage.setItem('cv-data', JSON.stringify(newData));
+  const [autoSaveEnabled, setAutoSaveEnabled] = useState(() => {
+    return localStorage.getItem(AUTO_SAVE_KEY) !== 'false';
+  });
+  const [realTimePreviewEnabled, setRealTimePreviewEnabled] = useState(() => {
+    return localStorage.getItem(REAL_TIME_PREVIEW_KEY) !== 'false';
+  });
+
+  const previewRef = useRef<HTMLDivElement>(null);
+  const autoSaveTimer = useRef<NodeJS.Timeout>();
+
+  useEffect(() => {
+    const savedData = localStorage.getItem('cv-data');
+    const savedTimestamp = localStorage.getItem('cv-last-saved');
+    if (savedData) {
+      try {
+        setCVData(JSON.parse(savedData));
+        if (savedTimestamp) setLastSaved(new Date(savedTimestamp));
+      } catch (error) {
+        console.error('Failed to parse saved CV data:', error);
+        message.error('Failed to load saved data');
+      }
+    }
   }, []);
 
-  const handleExportAsPDF = useCallback(async () => {
-    if (!previewRef.current) return;
+  useEffect(() => {
+    const handleStorageChange = (event: StorageEvent) => {
+      if (event.key === AUTO_SAVE_KEY) {
+        setAutoSaveEnabled(event.newValue !== 'false');
+      }
+      if (event.key === REAL_TIME_PREVIEW_KEY) {
+        setRealTimePreviewEnabled(event.newValue !== 'false');
+      }
+    };
+    window.addEventListener('storage', handleStorageChange);
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+    };
+  }, []);
 
+  const autoSave = useCallback(
+    (data: CVData) => {
+      if (!autoSaveEnabled) return;
+      if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
+      autoSaveTimer.current = setTimeout(() => {
+        setIsAutoSaving(true);
+        try {
+          localStorage.setItem('cv-data', JSON.stringify(data));
+          const now = new Date();
+          localStorage.setItem('cv-last-saved', now.toISOString());
+          setLastSaved(now);
+          setUnsavedChanges(false);
+        } catch (error) {
+          console.error('Auto-save failed:', error);
+        } finally {
+          setIsAutoSaving(false);
+        }
+      }, 2000);
+    },
+    [autoSaveEnabled]
+  );
+
+  const handleDataChange = useCallback(
+    (newData: CVData) => {
+      setCVData(newData);
+      setUnsavedChanges(true);
+      autoSave(newData);
+    },
+    [autoSave]
+  );
+
+  const handleManualSave = useCallback(async () => {
+    setIsSaving(true);
+    try {
+      localStorage.setItem('cv-data', JSON.stringify(cvData));
+      const now = new Date();
+      localStorage.setItem('cv-last-saved', now.toISOString());
+      setLastSaved(now);
+      setUnsavedChanges(false);
+      message.success('CV saved successfully!');
+    } catch (error) {
+      console.error('Manual save failed:', error);
+      message.error('Failed to save CV');
+    } finally {
+      setIsSaving(false);
+    }
+  }, [cvData]);
+
+  const handleExportAsPDF = useCallback(async () => {
+    if (!previewRef.current) {
+      message.error('Preview not available for PDF export');
+      return;
+    }
     setIsSaving(true);
     try {
       const element = previewRef.current;
+      const fileName = `${cvData.personalInfo.fullName.replace(
+        /\s+/g,
+        '_'
+      )}_CV.pdf`;
       const opt = {
         margin: [10, 10, 10, 10],
-        filename: `${cvData.personalInfo.fullName.replace(/\s+/g, '_')}_CV.pdf`,
+        filename: fileName,
         image: { type: 'jpeg', quality: 0.98 },
-        html2canvas: {
-          scale: 2,
-          useCORS: true,
-          letterRendering: true,
-          logging: false,
-        },
+        html2canvas: { scale: 2, useCORS: true },
         jsPDF: {
           unit: 'mm',
           format: 'a4',
-          orientation: 'portrait',
-          compress: true,
+          orientation: 'portrait' as 'portrait' | 'landscape',
         },
-        pagebreak: { mode: 'avoid-all' },
-        enableLinks: true,
       };
-
-      const clonedElement = element.cloneNode(true) as HTMLElement;
-
-      clonedElement.querySelectorAll('a').forEach((link) => {
-        if (link.href.startsWith('/')) {
-          link.href = window.location.origin + link.href;
-        }
-      });
-
-      clonedElement.querySelectorAll('.anticon').forEach((icon) => {
-        icon.classList.add('pdf-visible');
-      });
-
-      await html2pdf()
-        .set(opt as any)
-        .from(clonedElement)
-        .save();
-
-      message.success('PDF exported successfully!');
+      await html2pdf().set(opt).from(element).save();
+      message.success(`PDF "${fileName}" downloaded successfully!`);
     } catch (error) {
       console.error('Error generating PDF:', error);
       message.error('Failed to export PDF. Please try again.');
@@ -101,128 +204,196 @@ export const CV = () => {
     }
   }, [cvData.personalInfo.fullName]);
 
-  return (
-    <div className='min-h-screen bg-gradient-to-br from-[#f0f9ff] to-[#e6f7ff]'>
-      <nav className='fixed top-0 left-0 right-0 z-50 bg-white shadow-sm h-16 backdrop-blur-sm bg-opacity-95 border-b border-gray-100'>
-        <div className='max-w-[99vw] mx-auto px-4 sm:px-6 lg:px-8 h-full flex items-center justify-between'>
-          <div className='flex items-center'>
+  const togglePreviewMode = useCallback(() => setPreviewMode((p) => !p), []);
+
+  useEffect(() => {
+    return () => {
+      if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
+    };
+  }, []);
+
+  const rightNavContent = useMemo(
+    () => (
+      <div className="flex items-center gap-3">
+        {autoSaveEnabled && (
+          <div className="hidden md:flex items-center gap-2 text-sm text-gray-600">
+            {isAutoSaving ? (
+              <>
+                <RefreshCw className="w-4 h-4 animate-spin" />
+                <span>Saving...</span>
+              </>
+            ) : (
+              <>
+                <div
+                  className={`w-2 h-2 rounded-full ${
+                    unsavedChanges ? 'bg-yellow-500' : 'bg-green-500'
+                  }`}
+                />
+                <span>
+                  {unsavedChanges
+                    ? 'Unsaved changes'
+                    : `Saved ${formatLastSaved(lastSaved)}`}
+                </span>
+              </>
+            )}
+          </div>
+        )}
+
+        {realTimePreviewEnabled && (
+          <Tooltip title={previewMode ? 'Show editor' : 'Preview only'}>
             <button
-              onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-              className='mr-4 text-gray-600 hover:text-blue-600 transition-colors duration-200 p-2 rounded-lg hover:bg-blue-50'
-              aria-label={
-                sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'
-              }
+              onClick={togglePreviewMode}
+              className="hidden lg:flex items-center justify-center w-10 h-10 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 transition-colors"
             >
-              {sidebarCollapsed ? (
-                <MenuUnfoldOutlined className='text-lg' />
+              {previewMode ? (
+                <Eye className="w-4 h-4" />
               ) : (
-                <MenuFoldOutlined className='text-lg' />
+                <EyeOff className="w-4 h-4" />
               )}
             </button>
-            <div className='flex items-center space-x-2'>
-              <div className='bg-blue-600 w-8 h-8 rounded-md flex items-center justify-center'>
-                <span className='text-white font-bold'>CV</span>
-              </div>
-              <h1 className='text-xl font-bold text-gray-800 hidden sm:block'>
-                CV Builder Pro
-              </h1>
-            </div>
-          </div>
+          </Tooltip>
+        )}
 
-          <div className='flex items-center space-x-4'>
-            <button
-              onClick={handleExportAsPDF}
-              disabled={isSaving}
-              className='group inline-flex items-center justify-center leading-none no-underline border-none cursor-pointer rounded-full font-semibold text-white whitespace-nowrap overflow-hidden text-ellipsis transition-all duration-300 py-2.5 px-4 gap-3 bg-blue-600 hover:bg-blue-800 active:scale-[0.98] shadow-md hover:shadow-lg'
-              style={{ paddingLeft: '20px' }}
-            >
-              {isSaving ? (
-                <>
-                  <Loader2 className='animate-spin h-4 w-4' />
-                  <span>Exporting...</span>
-                </>
-              ) : (
-                <>
-                  <span>Export PDF</span>
-                  <span className='flex-shrink-0 w-6 h-6 relative grid place-items-center overflow-hidden rounded-full bg-white text-[#4DBCE9] group-hover:text-black'>
-                    <ArrowDownToLine
-                      className='absolute transform transition-transform duration-300 group-hover:translate-x-[150%] group-hover:-translate-y-[150%]'
-                      size={14}
-                    />
-                    <ArrowDownToLine
-                      className='absolute transform transition-transform duration-300 delay-100 translate-x-[-150%] translate-y-[150%] group-hover:translate-x-0 group-hover:translate-y-0'
-                      size={14}
-                    />
-                  </span>
-                </>
-              )}
-            </button>
-          </div>
-        </div>
-      </nav>
+        <Tooltip title="Save manually">
+          <button
+            onClick={handleManualSave}
+            disabled={isSaving || isAutoSaving}
+            className="flex items-center justify-center w-10 h-10 rounded-lg bg-blue-100 hover:bg-blue-200 text-blue-700 transition-colors disabled:opacity-50"
+          >
+            <Save className="w-4 h-4" />
+          </button>
+        </Tooltip>
 
-      <Layout hasSider className='pt-16 h-[calc(100vh-64px)]'>
-        <Sidebar
-          activeSection={activeSection}
-          onSectionChange={setActiveSection}
-          collapsed={sidebarCollapsed}
-          className='top-16 h-[calc(100vh-64px)] bg-white shadow-sm'
-        />
-
-        <Layout
-          style={{
-            marginLeft: sidebarCollapsed ? 80 : 280,
-            transition: 'margin-left 0.2s cubic-bezier(0.2, 0, 0, 1)',
-            minHeight: 'calc(100vh - 64px)',
-          }}
-          className='bg-transparent'
+        <button
+          onClick={handleExportAsPDF}
+          disabled={isSaving}
+          className="group inline-flex items-center justify-center leading-none no-underline border-none cursor-pointer rounded-xl font-semibold text-white whitespace-nowrap overflow-hidden text-ellipsis transition-all duration-300 py-3 px-6 gap-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 active:scale-[0.98] shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          <Content className='p-4 md:p-8 overflow-auto'>
-            <div className='grid grid-cols-1 lg:grid-cols-2 gap-6 md:gap-8'>
-              <div className='space-y-6'>
-                <div className='bg-white rounded-2xl shadow-md p-6 border border-gray-100 transition-all duration-300 hover:shadow-lg'>
-                  <div className='mb-6'>
-                    <h2 className='text-2xl font-bold text-gray-800 flex items-center'>
-                      <span className='bg-blue-100 text-blue-600 w-8 h-8 rounded-full flex items-center justify-center mr-3'>
-                        {activeSection.charAt(0)}
-                      </span>
-                      {activeSection}
-                    </h2>
-                    <p className='text-gray-500 text-sm mt-1 ml-11'>
-                      Fill in your {activeSection.toLowerCase()} details
-                    </p>
-                  </div>
-                  <CVForms
-                    data={cvData}
-                    onChange={handleDataChange}
-                    activeSection={activeSection}
-                  />
-                </div>
-              </div>
+          {isSaving ? (
+            <>
+              <Loader2 className="animate-spin h-4 w-4" />
+              <span>Exporting...</span>
+            </>
+          ) : (
+            <>
+              {/* ICON ADDED HERE */}
+              <ArrowDownToLine className="h-4 w-4" />
+              <span className="hidden sm:inline">Export PDF</span>
+              <span className="sm:hidden">PDF</span>
+            </>
+          )}
+        </button>
+      </div>
+    ),
+    [
+      autoSaveEnabled,
+      isAutoSaving,
+      unsavedChanges,
+      lastSaved,
+      realTimePreviewEnabled,
+      previewMode,
+      togglePreviewMode,
+      handleManualSave,
+      isSaving,
+      handleExportAsPDF,
+    ]
+  );
 
-              <div className='sticky top-16' id='cv-preview'>
-                <div className='bg-white rounded-2xl shadow-md p-6 border border-gray-100 transition-all duration-300 hover:shadow-lg'>
-                  <div className='flex justify-between items-center mb-6'>
-                    <h2 className='text-2xl font-bold text-gray-800'>
-                      CV Preview
-                    </h2>
-                    <span className='inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-green-100 text-green-800'>
-                      <span className='w-2 h-2 rounded-full bg-green-500 mr-2'></span>
-                      Real-time
+  return (
+    <DashboardLayout
+      rightNavContent={rightNavContent}
+      sidebarConfig={{
+        activeSection,
+        onSectionChange: setActiveSection,
+      }}
+    >
+      <div
+        className={`transition-all duration-300 ${
+          !previewMode && realTimePreviewEnabled
+            ? 'grid grid-cols-1 lg:grid-cols-2'
+            : 'block'
+        } gap-6 md:gap-8`}
+      >
+        {!previewMode && (
+          <div
+            className={`space-y-6 ${
+              !realTimePreviewEnabled && 'max-w-4xl mx-auto w-full'
+            }`}
+          >
+            <div className="bg-white rounded-2xl shadow-lg p-6 border border-gray-100 transition-all duration-300 hover:shadow-xl">
+              <div className="mb-6">
+                <div className="flex items-center justify-between mb-2">
+                  <h2 className="text-2xl font-bold text-gray-800 flex items-center">
+                    <span className="bg-gradient-to-br from-blue-500 to-indigo-600 text-white w-10 h-10 rounded-xl flex items-center justify-center mr-3 shadow-md">
+                      {activeSection.charAt(0)}
                     </span>
-                  </div>
-                  <div
-                    ref={previewRef}
-                    className='transition-transform duration-300 hover:shadow-lg'
-                  >
-                    <CVPreviews data={cvData} />
-                  </div>
+                    {activeSection}
+                  </h2>
                 </div>
+                <p className="text-gray-500 text-sm ml-13">
+                  Fill in your {activeSection.toLowerCase()} details
+                </p>
+              </div>
+              <CVForms
+                data={cvData}
+                onChange={handleDataChange}
+                activeSection={activeSection}
+              />
+            </div>
+          </div>
+        )}
+
+        {realTimePreviewEnabled && (
+          <div
+            className={`${
+              previewMode ? 'max-w-4xl mx-auto' : 'lg:sticky h-fit top-8'
+            }`}
+            id="cv-preview-mobile"
+          >
+            <div className="bg-white rounded-2xl shadow-lg p-6 border border-gray-100 transition-all duration-300 hover:shadow-xl">
+              <div className="flex justify-between items-center mb-6">
+                <h2 className="text-2xl font-bold text-gray-800">CV Preview</h2>
+              </div>
+              <div ref={previewRef} className="p-4">
+                <CVPreviews data={cvData} />
               </div>
             </div>
-          </Content>
-        </Layout>
-      </Layout>
-    </div>
+          </div>
+        )}
+      </div>
+
+      {/* --- MODIFIED --- */}
+      {/* The style is now dynamic. On mobile screens (width < 768px), the bottom will be 80px.
+          Otherwise, it will fall back to the default of 24px. */}
+      <FloatButton.Group
+        trigger="click"
+        type="primary"
+        style={{ right: 24, bottom: isMobile ? 80 : 24 }}
+        icon={<Save />}
+      >
+        <Tooltip title="Export as PDF" placement="left">
+          <FloatButton
+            icon={<ArrowDownToLine size={16} />}
+            onClick={handleExportAsPDF}
+          />
+        </Tooltip>
+        <Tooltip title="Manual Save" placement="left">
+          <FloatButton icon={<Save size={16} />} onClick={handleManualSave} />
+        </Tooltip>
+
+        {realTimePreviewEnabled && (
+          <Tooltip
+            title={previewMode ? 'Show Editor' : 'Preview Only'}
+            placement="left"
+          >
+            <FloatButton
+              className="lg:hidden"
+              icon={previewMode ? <Eye size={16} /> : <EyeOff size={16} />}
+              onClick={togglePreviewMode}
+            />
+          </Tooltip>
+        )}
+      </FloatButton.Group>
+    </DashboardLayout>
   );
 };

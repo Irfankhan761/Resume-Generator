@@ -11,24 +11,35 @@ const toFrontendFormat = (item: any): Project => ({
   technologies: item.technologies || [],
 });
 
-const toBackendFormat = (item: Project, userId: string) => ({
-  id: item.id.startsWith('temp-') ? undefined : item.id,
-  user_id: userId,
-  title: item.title,
-  link: item.link,
-  start_date: item.startDate,
-  end_date: item.endDate,
-  description: item.description,
-  technologies: item.technologies,
-});
+const toBackendFormat = (item: Project, userId: string) => {
+  const backendItem: any = {
+    user_id: userId,
+    title: item.title || '',
+    link: item.link || null,
+    start_date: item.startDate || null,
+    end_date: item.endDate || null,
+    description: item.description || null,
+    technologies: item.technologies || [],
+  };
+
+  // Only include ID if it's not a temporary ID
+  if (item.id && !item.id.startsWith('temp-')) {
+    backendItem.id = item.id;
+  }
+
+  return backendItem;
+};
 
 export const projectService = {
   async loadProjects(): Promise<{ error: any; data: Project[] | null }> {
     try {
       const {
         data: { user },
+        error: userError,
       } = await supabase.auth.getUser();
-      if (!user) {
+
+      if (userError || !user) {
+        console.error('User authentication error:', userError);
         return { error: 'User not authenticated', data: null };
       }
 
@@ -39,12 +50,15 @@ export const projectService = {
         .order('start_date', { ascending: false });
 
       if (error) {
+        console.error('Database error loading projects:', error);
         return { error, data: null };
       }
 
-      const formattedData = data.map(toFrontendFormat);
+      const formattedData = data ? data.map(toFrontendFormat) : [];
+      console.log('Loaded projects:', formattedData);
       return { error: null, data: formattedData };
     } catch (error) {
+      console.error('Unexpected error in loadProjects:', error);
       return { error, data: null };
     }
   },
@@ -53,26 +67,50 @@ export const projectService = {
     project: Project
   ): Promise<{ error: any; data: Project | null }> {
     try {
+      console.log('Saving project:', project);
+
       const {
         data: { user },
+        error: userError,
       } = await supabase.auth.getUser();
-      if (!user) {
-        throw new Error('User not authenticated');
+
+      if (userError || !user) {
+        console.error('User authentication error:', userError);
+        return { error: 'User not authenticated', data: null };
       }
 
-      const upsertData = toBackendFormat(project, user.id);
+      const formattedItem = toBackendFormat(project, user.id);
+      console.log('Formatted project for database:', formattedItem);
 
-      const { data, error } = await supabase
-        .from('projects')
-        .upsert([upsertData], { defaultToNull: false })
-        .select()
-        .single();
+      let result;
+
+      // Check if this is an update (has existing ID) or insert (new record)
+      if (project.id && !project.id.startsWith('temp-')) {
+        // Update existing record
+        result = await supabase
+          .from('projects')
+          .update(formattedItem)
+          .eq('id', project.id)
+          .eq('user_id', user.id)
+          .select()
+          .single();
+      } else {
+        // Insert new record
+        result = await supabase
+          .from('projects')
+          .insert([formattedItem])
+          .select()
+          .single();
+      }
+
+      const { data, error } = result;
 
       if (error) {
-        console.error('Error upserting project:', error);
+        console.error('Database error saving project:', error);
         return { error, data: null };
       }
 
+      console.log('Successfully saved project:', data);
       return { error: null, data: toFrontendFormat(data) };
     } catch (error) {
       console.error('Unexpected error in saveProject:', error);
@@ -86,9 +124,12 @@ export const projectService = {
     try {
       const {
         data: { user },
+        error: userError,
       } = await supabase.auth.getUser();
-      if (!user) {
-        throw new Error('User not authenticated');
+
+      if (userError || !user) {
+        console.error('User authentication error:', userError);
+        return { error: 'User not authenticated', data: null };
       }
 
       const { error, data } = await supabase
@@ -98,7 +139,7 @@ export const projectService = {
         .eq('user_id', user.id);
 
       if (error) {
-        console.error('Error deleting project:', error);
+        console.error('Database error deleting project:', error);
         return { error, data: null };
       }
 

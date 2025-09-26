@@ -11,59 +11,52 @@ export const personalInfoService = {
         throw new Error('User not authenticated');
       }
 
+      const payload = {
+        full_name: data.fullName,
+        job_title: data.jobTitle,
+        email: data.email,
+        phone: data.phone,
+        location: data.location,
+        website: data.website,
+        linkedin: data.linkedin,
+        github: data.github,
+        summary: data.summary,
+        profile_image: data.profileImage ?? null,
+      };
+
       const { data: existingData } = await supabase
         .from('personal_info')
         .select('id')
         .eq('user_id', user.data.user.id)
-        .single();
+        .maybeSingle();
 
       if (existingData) {
-        // Update existing record
         const { data: updatedData, error } = await supabase
           .from('personal_info')
-          .update({
-            full_name: data.fullName,
-            job_title: data.jobTitle,
-            email: data.email,
-            phone: data.phone,
-            location: data.location,
-            website: data.website,
-            linkedin: data.linkedin,
-            github: data.github,
-            summary: data.summary,
-          })
+          .update(payload)
           .eq('user_id', user.data.user.id)
           .select()
-          .single();
+          .maybeSingle();
 
         return { error, data: updatedData };
       } else {
-        // Insert new record
         const { data: newData, error } = await supabase
           .from('personal_info')
           .insert({
             user_id: user.data.user.id,
-            full_name: data.fullName,
-            job_title: data.jobTitle,
-            email: data.email,
-            phone: data.phone,
-            location: data.location,
-            website: data.website,
-            linkedin: data.linkedin,
-            github: data.github,
-            summary: data.summary,
+            ...payload,
           })
           .select()
-          .single();
+          .maybeSingle();
 
         return { error, data: newData };
       }
     } catch (error) {
+      console.error('Error in savePersonalInfo:', error);
       return { error, data: null };
     }
   },
 
-  // Load personal info for current user
   async loadPersonalInfo(): Promise<{ error: any; data: PersonalInfo | null }> {
     try {
       const user = await supabase.auth.getUser();
@@ -75,17 +68,16 @@ export const personalInfoService = {
         .from('personal_info')
         .select('*')
         .eq('user_id', user.data.user.id)
-        .single();
+        .maybeSingle();
 
       if (error) {
+        console.error('Error loading personal info from DB:', error);
         return { error, data: null };
       }
 
       if (!personalInfo) {
         return { error: null, data: null };
       }
-
-      // Convert database fields to component format
       const formattedData: PersonalInfo = {
         fullName: personalInfo.full_name,
         jobTitle: personalInfo.job_title,
@@ -96,15 +88,16 @@ export const personalInfoService = {
         linkedin: personalInfo.linkedin || '',
         github: personalInfo.github || '',
         summary: personalInfo.summary,
+        profileImage: personalInfo.profile_image ?? undefined,
       };
 
       return { error: null, data: formattedData };
     } catch (error) {
+      console.error('Unexpected error in loadPersonalInfo:', error);
       return { error, data: null };
     }
   },
 
-  // Delete personal info
   async deletePersonalInfo(): Promise<{ error: any }> {
     try {
       const user = await supabase.auth.getUser();
@@ -120,6 +113,62 @@ export const personalInfoService = {
       return { error };
     } catch (error) {
       return { error };
+    }
+  },
+
+  async updateProfileImage(
+    profileImage: string | null
+  ): Promise<{ error: any; data: any }> {
+    try {
+      const getUserResp = await supabase.auth.getUser();
+      const user = getUserResp?.data?.user;
+      if (!user) {
+        const err = new Error('User not authenticated');
+        console.error('updateProfileImage: no authenticated user');
+        return { error: err, data: null };
+      }
+
+      const userId = user.id;
+      const payload = { profile_image: profileImage ?? null };
+
+      // Try update first (most common case)
+      const { data: updatedData, error: updateError } = await supabase
+        .from('personal_info')
+        .update(payload)
+        .eq('user_id', userId)
+        .select()
+        .maybeSingle();
+
+      if (updateError) {
+        // Log but keep going to attempt insert fallback
+        console.warn(
+          'updateProfileImage: update error (will try insert):',
+          updateError
+        );
+      }
+
+      // If update returned a row, return it
+      if (updatedData) {
+        return { error: null, data: updatedData };
+      }
+
+      // No existing row or update didn't return a row — insert a new one.
+      // Use array form for insert to satisfy the TS signatures.
+      const { data: insertedData, error: insertError } = await supabase
+        .from('personal_info')
+        .insert([{ user_id: userId, ...payload }])
+        .select()
+        .maybeSingle();
+
+      if (insertError) {
+        console.error('updateProfileImage: insert failed', insertError);
+        return { error: insertError, data: null };
+      }
+
+      return { error: null, data: insertedData };
+    } catch (err) {
+      console.error('Unexpected error in updateProfileImage:', err);
+      return { error: err, data: null };
     }
   },
 };

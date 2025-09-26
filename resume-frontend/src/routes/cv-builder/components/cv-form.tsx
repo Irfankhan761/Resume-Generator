@@ -1,10 +1,10 @@
 import { useCallback } from 'react';
 import { PersonalInfoForm } from './forms/personal-info/personal-info-form';
-import { EducationForm } from './forms/education-info/educational-form';
 import type { CVData } from '../types/types';
 import { WorkExperienceForm } from './forms/work-experience-info/work-experience-form';
 import { ProjectForm } from './forms/project-info/project-form';
 import { SkillForm } from './forms/skills-info/skills-form';
+import { EducationForm } from './forms/education-info/educational-form';
 
 interface CVFormsProps {
   data: CVData;

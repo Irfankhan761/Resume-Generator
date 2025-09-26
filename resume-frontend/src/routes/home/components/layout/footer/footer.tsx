@@ -7,14 +7,14 @@ import {
   PhoneOutlined,
   EnvironmentOutlined,
   LoadingOutlined,
-} from "@ant-design/icons";
-import { Button, Input, message, Space } from "antd";
-import { useState } from "react";
+} from '@ant-design/icons';
+import { Button, Input, message, Space } from 'antd';
+import { useState } from 'react';
 
 const MicrosoftIcon = () => (
   <svg
-    width="32"
-    height="32"
+    width="28"
+    height="28"
     viewBox="0 0 23 23"
     fill="none"
     xmlns="http://www.w3.org/2000/svg"
@@ -28,8 +28,8 @@ const MicrosoftIcon = () => (
 
 const GoogleIcon = () => (
   <svg
-    width="32"
-    height="32"
+    width="28"
+    height="28"
     viewBox="0 0 24 24"
     fill="none"
     xmlns="http://www.w3.org/2000/svg"
@@ -58,8 +58,8 @@ const AmazonIcon = () => (
     xmlns="http://www.w3.org/2000/svg"
     x="0px"
     y="0px"
-    width="40"
-    height="40"
+    width="34"
+    height="34"
     viewBox="0 0 48 48"
   >
     <path
@@ -75,8 +75,8 @@ const AmazonIcon = () => (
 
 const AppleIcon = () => (
   <svg
-    width="32"
-    height="32"
+    width="28"
+    height="28"
     viewBox="0 0 24 24"
     fill="none"
     xmlns="http://www.w3.org/2000/svg"
@@ -93,8 +93,8 @@ const NetflixIcon = () => (
     xmlns="http://www.w3.org/2000/svg"
     x="0px"
     y="0px"
-    width="100"
-    height="100"
+    width="50"
+    height="50"
     viewBox="0 0 48 48"
   >
     <path
@@ -106,8 +106,8 @@ const NetflixIcon = () => (
 
 const TeslaIcon = () => (
   <svg
-    width="32"
-    height="32"
+    width="28"
+    height="28"
     viewBox="0 0 24 24"
     fill="none"
     xmlns="http://www.w3.org/2000/svg"
@@ -125,54 +125,48 @@ const TeslaIcon = () => (
 );
 
 const Footer = () => {
-  const [email, setEmail] = useState("");
+  const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
   const [subscribed, setSubscribed] = useState(false);
 
   const footerLinks = [
     {
-      title: "Company",
-      links: ["About Us", "Careers", "Blog", "Press"],
+      title: 'Company',
+      links: ['About Us', 'Careers', 'Blog', 'Press'],
     },
     {
-      title: "Product",
-      links: ["Features", "Pricing", "Templates", "Examples"],
+      title: 'Product',
+      links: ['Features', 'Pricing', 'Templates', 'Examples'],
     },
     {
-      title: "Resources",
-      links: ["Help Center", "Tutorials", "CV Tips", "FAQ"],
+      title: 'Resources',
+      links: ['Help Center', 'Tutorials', 'CV Tips', 'FAQ'],
     },
   ];
 
   const companyLogos = [
-    { name: "Microsoft", icon: MicrosoftIcon },
-    { name: "Google", icon: GoogleIcon },
-    { name: "Amazon", icon: AmazonIcon },
-    { name: "Apple", icon: AppleIcon },
-    { name: "Netflix", icon: NetflixIcon },
-    { name: "Tesla", icon: TeslaIcon },
+    { name: 'Microsoft', icon: MicrosoftIcon },
+    { name: 'Google', icon: GoogleIcon },
+    { name: 'Amazon', icon: AmazonIcon },
+    { name: 'Apple', icon: AppleIcon },
+    { name: 'Netflix', icon: NetflixIcon },
+    { name: 'Tesla', icon: TeslaIcon },
   ];
 
   const handleSubscribe = async () => {
-    if (!email.trim()) {
-      message.error("Please enter a valid email address");
-      return;
-    }
-
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      message.error("Please enter a valid email format");
+    if (!email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      message.error('Please enter a valid email address');
       return;
     }
 
     setLoading(true);
-
     try {
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      await new Promise((resolve) => setTimeout(resolve, 1500));
       setSubscribed(true);
-      message.success("Subscribed successfully!");
-      setEmail("");
+      message.success('Subscribed successfully!');
+      setEmail('');
     } catch (error) {
-      message.error("Subscription failed. Please try again.");
+      message.error('Subscription failed. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -180,12 +174,12 @@ const Footer = () => {
 
   return (
     <footer className="bg-white text-gray-900">
-      <section className="bg-white border-t border-gray-200">
-        <div className="max-w-7xl mx-auto px-4 text-center">
-          <p className="text-2xl text-black mt-10 font-semibold mb-6">
+      <section className="bg-white border-t border-gray-200 py-12">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+          <p className="text-xl sm:text-2xl text-black font-semibold mb-8">
             Trusted by professionals at top companies worldwide
           </p>
-          <div className="flex flex-wrap justify-center items-center gap-x-12 gap-y-6">
+          <div className="flex flex-col sm:flex-row flex-wrap justify-center items-center gap-x-12 gap-y-8">
             {companyLogos.map((company) => {
               const IconComponent = company.icon;
               return (
@@ -204,9 +198,9 @@ const Footer = () => {
         </div>
       </section>
 
-      <div className="max-w-7xl mx-auto pt-12 pb-8">
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-8 mb-8">
-          <div className="md:col-span-1">
+      <div className="max-w-7xl mx-auto py-12 px-4 sm:px-6 lg:px-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-8 mb-8">
+          <div className="lg:col-span-2 md:col-span-2">
             <div className="flex items-center mb-4">
               <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white text-lg font-bold mr-2">
                 CV
@@ -256,7 +250,7 @@ const Footer = () => {
           </div>
 
           {footerLinks.map((section) => (
-            <div key={section.title} className="md:col-span-1">
+            <div key={section.title} className="lg:col-span-1 md:col-span-1">
               <h3 className="font-semibold text-gray-900 mb-3">
                 {section.title}
               </h3>
@@ -264,7 +258,7 @@ const Footer = () => {
                 {section.links.map((link) => (
                   <li key={link}>
                     <a
-                      href={`#${link.toLowerCase().replace(/\s+/g, "-")}`}
+                      href={`#${link.toLowerCase().replace(/\s+/g, '-')}`}
                       className="text-gray-600 hover:text-blue-600 hover:underline"
                     >
                       {link}
@@ -275,10 +269,10 @@ const Footer = () => {
             </div>
           ))}
 
-          <div className="md:col-span-1">
+          <div className="lg:col-span-2 md:col-span-2">
             <h3 className="font-semibold text-gray-900 mb-3">Newsletter</h3>
             {subscribed ? (
-              <div className="bg-green-50 text-green-800 p-3 rounded border-l-4 border-green-500 text-xs">
+              <div className="bg-green-50 text-green-800 p-3 rounded-lg border border-green-200 text-sm">
                 <p className="font-semibold">Thank you for subscribing!</p>
                 <p>You'll receive our next newsletter soon.</p>
               </div>
@@ -303,7 +297,7 @@ const Footer = () => {
                     icon={loading ? <LoadingOutlined /> : null}
                     className="h-auto"
                   >
-                    {loading ? "Sending" : "Go"}
+                    {loading ? 'Sending' : 'Go'}
                   </Button>
                 </Space.Compact>
               </div>
@@ -311,40 +305,41 @@ const Footer = () => {
           </div>
         </div>
 
-        <div className="border-t border-gray-200 mb-6"></div>
-        <div className="flex flex-col md:flex-row justify-between items-center">
-          <p className="text-gray-500 text-sm mb-4 md:mb-0">
-            © {new Date().getFullYear()} CV Pro. All rights reserved.
-          </p>
-          <div className="flex space-x-6">
-            <a
-              href="##"
-              aria-label="Twitter"
-              className="text-gray-500 hover:text-blue-600 text-lg"
-            >
-              <TwitterOutlined />
-            </a>
-            <a
-              href="##"
-              aria-label="LinkedIn"
-              className="text-gray-500 hover:text-blue-600 text-lg"
-            >
-              <LinkedinOutlined />
-            </a>
-            <a
-              href="##"
-              aria-label="Facebook"
-              className="text-gray-500 hover:text-blue-600 text-lg"
-            >
-              <FacebookOutlined />
-            </a>
-            <a
-              href="##"
-              aria-label="Instagram"
-              className="text-gray-500 hover:text-blue-600 text-lg"
-            >
-              <InstagramOutlined />
-            </a>
+        <div className="border-t border-gray-200 pt-8 mt-8">
+          <div className="flex flex-col md:flex-row justify-between items-center text-center md:text-left">
+            <p className="text-gray-500 text-sm mb-4 md:mb-0">
+              © {new Date().getFullYear()} CV Pro. All rights reserved.
+            </p>
+            <div className="flex space-x-6">
+              <a
+                href="##"
+                aria-label="Twitter"
+                className="text-gray-500 hover:text-blue-600 text-xl"
+              >
+                <TwitterOutlined />
+              </a>
+              <a
+                href="##"
+                aria-label="LinkedIn"
+                className="text-gray-500 hover:text-blue-600 text-xl"
+              >
+                <LinkedinOutlined />
+              </a>
+              <a
+                href="##"
+                aria-label="Facebook"
+                className="text-gray-500 hover:text-blue-600 text-xl"
+              >
+                <FacebookOutlined />
+              </a>
+              <a
+                href="##"
+                aria-label="Instagram"
+                className="text-gray-500 hover:text-blue-600 text-xl"
+              >
+                <InstagramOutlined />
+              </a>
+            </div>
           </div>
         </div>
       </div>

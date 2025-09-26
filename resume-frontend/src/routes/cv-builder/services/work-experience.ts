@@ -5,24 +5,32 @@ const toFrontendFormat = (item: any): WorkExperience => ({
   id: item.id,
   company: item.company,
   position: item.position,
-  location: item.location,
+  location: item.location || '',
   startDate: item.start_date,
   endDate: item.end_date,
   currentlyWorking: item.is_current || false,
   description: item.description || [],
 });
 
-const toBackendFormat = (item: WorkExperience, userId: string) => ({
-  id: item.id.startsWith('temp-') ? undefined : item.id,
-  user_id: userId,
-  company: item.company,
-  position: item.position,
-  location: item.location,
-  start_date: item.startDate,
-  end_date: item.endDate,
-  is_current: item.currentlyWorking,
-  description: item.description,
-});
+const toBackendFormat = (item: WorkExperience, userId: string) => {
+  const backendItem: any = {
+    user_id: userId,
+    company: item.company || '',
+    position: item.position || '',
+    location: item.location || null,
+    start_date: item.startDate || null,
+    end_date: item.currentlyWorking ? null : item.endDate || null,
+    is_current: item.currentlyWorking || false,
+    description: item.description || [],
+  };
+
+  // Only include ID if it's not a temporary ID
+  if (item.id && !item.id.startsWith('temp-')) {
+    backendItem.id = item.id;
+  }
+
+  return backendItem;
+};
 
 export const workExperienceService = {
   async loadWorkExperience(): Promise<{
@@ -32,8 +40,13 @@ export const workExperienceService = {
     try {
       const {
         data: { user },
+        error: userError,
       } = await supabase.auth.getUser();
-      if (!user) return { error: 'User not authenticated', data: null };
+
+      if (userError || !user) {
+        console.error('User authentication error:', userError);
+        return { error: 'User not authenticated', data: null };
+      }
 
       const { data, error } = await supabase
         .from('work_experience')
@@ -41,35 +54,68 @@ export const workExperienceService = {
         .eq('user_id', user.id)
         .order('start_date', { ascending: false });
 
-      if (error) return { error, data: null };
+      if (error) {
+        console.error('Database error loading work experience:', error);
+        return { error, data: null };
+      }
 
-      return { error: null, data: data.map(toFrontendFormat) };
+      const formattedData = data ? data.map(toFrontendFormat) : [];
+      console.log('Loaded work experience:', formattedData);
+      return { error: null, data: formattedData };
     } catch (error) {
+      console.error('Unexpected error in loadWorkExperience:', error);
       return { error, data: null };
     }
   },
+
   async saveWorkExperience(
     experienceItem: WorkExperience
   ): Promise<{ error: any; data: WorkExperience | null }> {
     try {
+      console.log('Saving work experience:', experienceItem);
+
       const {
         data: { user },
+        error: userError,
       } = await supabase.auth.getUser();
-      if (!user) throw new Error('User not authenticated');
 
-      const upsertData = toBackendFormat(experienceItem, user.id);
+      if (userError || !user) {
+        console.error('User authentication error:', userError);
+        return { error: 'User not authenticated', data: null };
+      }
 
-      const { data: savedData, error } = await supabase
-        .from('work_experience')
-        .upsert(upsertData)
-        .select()
-        .single();
+      const formattedItem = toBackendFormat(experienceItem, user.id);
+      console.log('Formatted work experience for database:', formattedItem);
+
+      let result;
+
+      // Check if this is an update (has existing ID) or insert (new record)
+      if (experienceItem.id && !experienceItem.id.startsWith('temp-')) {
+        // Update existing record
+        result = await supabase
+          .from('work_experience')
+          .update(formattedItem)
+          .eq('id', experienceItem.id)
+          .eq('user_id', user.id)
+          .select()
+          .single();
+      } else {
+        // Insert new record
+        result = await supabase
+          .from('work_experience')
+          .insert([formattedItem])
+          .select()
+          .single();
+      }
+
+      const { data: savedData, error } = result;
 
       if (error) {
-        console.error('Error upserting work experience:', error);
+        console.error('Database error saving work experience:', error);
         return { error, data: null };
       }
 
+      console.log('Successfully saved work experience:', savedData);
       return { error: null, data: toFrontendFormat(savedData) };
     } catch (error) {
       console.error('Unexpected error in saveWorkExperience:', error);
@@ -81,17 +127,28 @@ export const workExperienceService = {
     try {
       const {
         data: { user },
+        error: userError,
       } = await supabase.auth.getUser();
-      if (!user) throw new Error('User not authenticated');
+
+      if (userError || !user) {
+        console.error('User authentication error:', userError);
+        return { error: 'User not authenticated' };
+      }
 
       const { error } = await supabase
         .from('work_experience')
         .delete()
-        .match({ id: id, user_id: user.id });
+        .eq('id', id)
+        .eq('user_id', user.id);
 
-      if (error) console.error('Error deleting work experience:', error);
-      return { error };
+      if (error) {
+        console.error('Database error deleting work experience:', error);
+        return { error };
+      }
+
+      return { error: null };
     } catch (error) {
+      console.error('Unexpected error in deleteWorkExperience:', error);
       return { error };
     }
   },

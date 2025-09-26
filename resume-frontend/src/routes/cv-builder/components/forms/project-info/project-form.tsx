@@ -1,8 +1,8 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, memo } from 'react';
 import { Card, Button, Form, Typography, message, Spin, Modal } from 'antd';
 import { PlusOutlined } from '@ant-design/icons';
 import type { Project } from '@routes/cv-builder/types/types';
-import dayjs from 'dayjs';
+import dayjs, { Dayjs } from 'dayjs';
 import { ProjectList } from './project-list';
 import { ProjectModal } from './project-modal';
 import { projectService } from '../../../services/project-services';
@@ -10,65 +10,98 @@ import { projectService } from '../../../services/project-services';
 const { Title } = Typography;
 const { confirm } = Modal;
 
+type ProjectFormData = Omit<Project, 'id' | 'startDate' | 'endDate'> & {
+  startDate: Dayjs | null;
+  endDate: Dayjs | null;
+};
+
 interface ProjectFormProps {
   onChange: (data: Project[]) => void;
 }
 
-export const ProjectForm: React.FC<ProjectFormProps> = ({ onChange }) => {
-  const [modalForm] = Form.useForm();
+const ProjectFormComponent: React.FC<ProjectFormProps> = ({ onChange }) => {
+  const [modalForm] = Form.useForm<ProjectFormData>();
   const [projectList, setProjectList] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
+  const isMounted = useRef(false);
 
   const onChangeRef = useRef(onChange);
+
   useEffect(() => {
     onChangeRef.current = onChange;
   }, [onChange]);
 
-  useEffect(() => {
-    const doLoad = async () => {
-      setLoading(true);
+  const loadData = useCallback(async (showLoadingSpinner = true) => {
+    if (showLoadingSpinner) setLoading(true);
+    try {
       const { data: savedData, error } = await projectService.loadProjects();
-      if (error && error.code !== 'PGRST116') {
-        message.error('Failed to load project details.');
+
+      if (error) {
+        // Only show error if it's not a "no data found" error
+        if ((error as any).code !== 'PGRST116') {
+          console.error('Failed to load project details:', error);
+          message.error('Failed to load project details.');
+        }
       }
+
       const loadedList = savedData || [];
+      console.log('Loaded project list:', loadedList);
       setProjectList(loadedList);
       onChangeRef.current(loadedList);
-      setLoading(false);
-    };
-    doLoad();
+    } catch (err) {
+      console.error('Error loading projects:', err);
+      message.error(
+        err instanceof Error ? err.message : 'An unknown error occurred.'
+      );
+    } finally {
+      if (showLoadingSpinner) setLoading(false);
+    }
   }, []);
 
-  const reloadData = useCallback(async () => {
-    const { data: savedData, error } = await projectService.loadProjects();
-    if (error) message.error('Failed to reload project details.');
-    const reloadedList = savedData || [];
-    setProjectList(reloadedList);
-    onChangeRef.current(reloadedList);
-  }, []);
+  useEffect(() => {
+    if (!isMounted.current) {
+      isMounted.current = true;
+      loadData();
+    }
+  }, [loadData]);
 
   const showAddModal = useCallback(() => {
     setEditingIndex(null);
     modalForm.resetFields();
-    modalForm.setFieldsValue({ technologies: [''] });
+    modalForm.setFieldsValue({
+      technologies: [''],
+      title: '',
+      link: '',
+      description: '',
+    });
     setIsModalOpen(true);
   }, [modalForm]);
 
   const showEditModal = useCallback(
     (index: number) => {
-      setEditingIndex(index);
       const recordToEdit = projectList[index];
-      modalForm.setFieldsValue({
-        ...recordToEdit,
-        startDate: recordToEdit.startDate
-          ? dayjs(recordToEdit.startDate)
-          : null,
-        endDate: recordToEdit.endDate ? dayjs(recordToEdit.endDate) : null,
-      });
-      setIsModalOpen(true);
+      if (recordToEdit) {
+        setEditingIndex(index);
+
+        const formValues = {
+          ...recordToEdit,
+          startDate: recordToEdit.startDate
+            ? dayjs(recordToEdit.startDate)
+            : null,
+          endDate: recordToEdit.endDate ? dayjs(recordToEdit.endDate) : null,
+          technologies:
+            recordToEdit.technologies && recordToEdit.technologies.length > 0
+              ? recordToEdit.technologies
+              : [''],
+        };
+
+        console.log('Setting form values for edit:', formValues);
+        modalForm.setFieldsValue(formValues);
+        setIsModalOpen(true);
+      }
     },
     [projectList, modalForm]
   );
@@ -76,32 +109,59 @@ export const ProjectForm: React.FC<ProjectFormProps> = ({ onChange }) => {
   const handleCancel = useCallback(() => {
     setIsModalOpen(false);
     setEditingIndex(null);
-  }, []);
+    modalForm.resetFields();
+  }, [modalForm]);
 
   const handleModalSave = useCallback(
     async (continueAdding = false) => {
       try {
-        const modalValues = await modalForm.validateFields();
+        await modalForm.validateFields();
+        const modalValues = modalForm.getFieldsValue();
+
+        console.log('Form values before saving:', modalValues);
+
         setIsSaving(true);
+
+        // Determine the ID for the item
         const currentId =
           editingIndex !== null
             ? projectList[editingIndex].id
             : `temp-${Date.now()}`;
+
+        // Format the item for saving
         const itemToSave: Project = {
-          ...modalValues,
           id: currentId,
-          startDate: dayjs(modalValues.startDate).format('YYYY-MM-DD'),
+          title: modalValues.title?.trim() || '',
+          link: modalValues.link?.trim() || '',
+          description: modalValues.description?.trim() || '',
+          startDate: modalValues.startDate
+            ? dayjs(modalValues.startDate).format('YYYY-MM-DD')
+            : '',
           endDate: modalValues.endDate
             ? dayjs(modalValues.endDate).format('YYYY-MM-DD')
-            : undefined,
-          technologies: (modalValues.technologies || []).filter(Boolean),
+            : '',
+          technologies: (modalValues.technologies || []).filter(
+            (tech: string) => tech && tech.trim()
+          ),
         };
 
-        await projectService.saveProject(itemToSave);
+        console.log('Item to save:', itemToSave);
+
+        const { error, data } = await projectService.saveProject(itemToSave);
+
+        if (error) {
+          console.error('Save error:', error);
+          throw new Error(error.message || 'Failed to save project');
+        }
+
+        console.log('Save successful:', data);
+
         message.success(
           `Project ${editingIndex !== null ? 'updated' : 'added'} successfully!`
         );
-        await reloadData();
+
+        // Reload data to reflect changes
+        await loadData(false);
 
         if (continueAdding) {
           showAddModal();
@@ -109,47 +169,65 @@ export const ProjectForm: React.FC<ProjectFormProps> = ({ onChange }) => {
           handleCancel();
         }
       } catch (error) {
-        message.error('An error occurred while saving the project.');
+        // Don't show error message for validation errors (they have their own UI)
+        if (error && (error as any).errorFields) return;
+
+        console.error('Error in handleModalSave:', error);
+        message.error(
+          error instanceof Error
+            ? error.message
+            : 'An error occurred while saving the project.'
+        );
       } finally {
         setIsSaving(false);
       }
     },
-    [
-      modalForm,
-      editingIndex,
-      projectList,
-      reloadData,
-      showAddModal,
-      handleCancel,
-    ]
+    [modalForm, editingIndex, projectList, loadData, showAddModal, handleCancel]
   );
 
   const handleDelete = useCallback(
     (indexToDelete: number) => {
       const itemToDelete = projectList[indexToDelete];
-      if (!itemToDelete?.id || itemToDelete.id.startsWith('temp-')) return;
+
+      if (!itemToDelete?.id || itemToDelete.id.startsWith('temp-')) {
+        message.warning('Cannot delete unsaved item');
+        return;
+      }
 
       confirm({
         title: 'Are you sure you want to delete this project?',
         content: `This will permanently remove "${itemToDelete.title}".`,
         okText: 'Delete',
         okType: 'danger',
+        cancelText: 'Cancel',
         onOk: async () => {
           try {
             setIsSaving(true);
-            await projectService.deleteProject(itemToDelete.id);
+            const { error } = await projectService.deleteProject(
+              itemToDelete.id
+            );
+
+            if (error) {
+              throw new Error(error.message || 'Failed to delete project');
+            }
+
             message.success('Project deleted successfully!');
-            await reloadData();
+            await loadData(false);
             handleCancel();
           } catch (err) {
-            message.error('An error occurred while deleting the project.');
+            console.error('Delete error:', err);
+            message.error(
+              err instanceof Error
+                ? err.message
+                : 'An error occurred while deleting the project.'
+            );
           } finally {
             setIsSaving(false);
           }
         },
       });
     },
-    [projectList, reloadData, handleCancel]
+    [projectList, loadData, handleCancel]
   );
 
   const onSave = useCallback(() => handleModalSave(false), [handleModalSave]);
@@ -175,11 +253,7 @@ export const ProjectForm: React.FC<ProjectFormProps> = ({ onChange }) => {
     <>
       <Card
         className="mb-8"
-        style={{
-          borderRadius: '12px',
-          boxShadow: '0 4px 20px rgba(0, 0, 0, 0.08)',
-          border: 'none',
-        }}
+        style={{ boxShadow: '0 4px 20px rgba(0, 0, 0, 0.08)', border: 'none' }}
         title={
           <Title level={4} style={{ margin: 0 }}>
             Projects
@@ -210,3 +284,5 @@ export const ProjectForm: React.FC<ProjectFormProps> = ({ onChange }) => {
     </>
   );
 };
+
+export const ProjectForm = memo(ProjectFormComponent);
